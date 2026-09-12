@@ -27,6 +27,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from .outcome import compare
 from .round import Round
 from .providers import parse_model
 
@@ -88,7 +89,38 @@ def board_comment(state: dict, round_id: str) -> str:
         elif c.get("verdict") == "no_artifact":
             note = "stopped before writing the file"
         lines.append(f"| **{label}** | {verdict} | `{c.get('stopped_because')}` | {note} |")
-    lines += ["", "Identities, costs and timings stay hidden until someone chooses. Read the code:"]
+    # What each attempt PRODUCES, before any code is shown. A diff is the instructions; this is
+    # the work, and it is the only form in which someone who does not read code can see which
+    # attempt is wrong — the date that lands in March where February was meant.
+    comp = compare({l: (state["contestants"][l].get("outcome") or {}) for l in state["order"]})
+    if comp.get("rows"):
+        produced = [l for l in state["order"]
+                    if (state["contestants"][l].get("outcome") or {}).get("rows")]
+        lines += ["", f"#### {comp.get('title') or 'What each attempt produced'}",
+                  f"*{comp.get('subtitle') or ''}*", ""]
+        head = "| | " + " | ".join(f"**{l}**" for l in produced) + " |"
+        lines += [head, "|" + "---|" * (len(produced) + 1)]
+        for r in comp["rows"]:
+            for i in range(r["width"]):
+                col = (comp["columns"][i] if i < len(comp["columns"]) else str(i + 1))
+                name = f"**{r['label']}** <sub>{r['note']}</sub><br>{col}" if i == 0 else f"↳ {col}"
+                cells = []
+                for l in produced:
+                    v = (r["cells"].get(l) or [None] * r["width"])[i] if i < len(r["cells"].get(l, [])) else "—"
+                    cells.append(f"**{v}** ⚠️" if r["disagrees"][i] and not str(v).startswith("—") else str(v))
+                lines.append(f"| {name} | " + " | ".join(cells) + " |")
+        lines += ["", "A marked cell is one the attempts do not agree on. That is where to look."]
+        silent = [l for l in state["order"] if l not in produced]
+        if silent:
+            why = []
+            for l in silent:
+                err = (state["contestants"][l].get("outcome") or {}).get("error")
+                why.append(f"**{l}** ({err[:70]})" if err else f"**{l}**")
+            lines.append(f"\n{', '.join(why)} produced nothing that can be run, so there is no column "
+                         f"for it. That is a budget or transport result, not a wrong answer — the "
+                         f"table above says which.")
+    lines += ["", "Identities, costs and timings stay hidden until someone chooses. The code itself, "
+                  "for whoever wants it:"]
     for label in state["order"]:
         c = state["contestants"][label]
         diff = c.get("artifact_diff") or ""

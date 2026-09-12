@@ -39,6 +39,14 @@ class Pack:
     def check(self) -> Path:
         return self.root / "check.py"
 
+    @property
+    def outcome(self) -> Path:
+        """Optional: prints what this candidate's work PRODUCES, for a human who does not read code.
+
+        Same isolation as the check — outside the workspace, workspace importable, never copied in.
+        """
+        return self.root / "outcome.py"
+
     def stage(self, into: Path) -> Path:
         """Copy the fixture into a fresh isolated workspace and return it.
 

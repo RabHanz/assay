@@ -19,6 +19,7 @@ from pathlib import Path
 
 from . import pack as packmod
 from .judge import judge
+from .outcome import run_outcome
 from .providers import parse_model
 from .run import run_one
 
@@ -89,6 +90,7 @@ class Round:
             "contestants": {l: {"status": "queued", "turn": 0, "last_tool": None, "verdict": None,
                                 "failures_count": None, "failures": [], "stopped_because": None,
                                 "empty_output": False, "artifact_diff": "", "artifact_bytes": 0,
+                                "outcome": {},
                                 "reveal": self._reveal_stub(l) if not blind else None}
                             for l in labels},
             "choice": None,
@@ -143,6 +145,15 @@ class Round:
             verdict.failures = []
         (cdir / "verdict.json").write_text(json.dumps(verdict.__dict__, indent=2))
 
+        # Only a candidate that actually wrote something has an outcome. Running the outcome
+        # script against an untouched workspace would render the FIXTURE's behaviour and print
+        # it in that candidate's column, attributing to a model work it never did — the same
+        # mistake as grading the untouched fixture, one layer up.
+        outcome = ({} if not receipt.emitted_artifact
+                   else run_outcome(self.pack.outcome, workspace) if self.pack.outcome.exists() else {})
+        if outcome:
+            (cdir / "outcome.json").write_text(json.dumps(outcome, indent=2))
+
         before = (self.pack.fixture / self.pack.entrypoint)
         after = workspace / self.pack.entrypoint
         before_text = before.read_text().splitlines(keepends=True) if before.exists() else []
@@ -150,7 +161,7 @@ class Round:
         diff = "".join(difflib.unified_diff(before_text, after_text, fromfile=f"fixture/{self.pack.entrypoint}",
                                             tofile=f"workspace/{self.pack.entrypoint}"))
         self._update(
-            label, status="done", verdict=verdict.status,
+            label, status="done", verdict=verdict.status, outcome=outcome,
             failures_count=len(verdict.failures), failures=verdict.failures[:6],
             check_detail=verdict.detail,
             artifact_diff=_strip_identity(diff, self.specs) if self.blind else diff,
