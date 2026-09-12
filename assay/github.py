@@ -63,9 +63,25 @@ def _fold(title: str, body: str, lang: str = "diff") -> str:
 
 def board_comment(state: dict, round_id: str) -> str:
     pack, policy = state["pack"], state["policy"]
+    n = len(state["contestants"])
+    passed = [l for l in state["order"] if state["contestants"][l].get("verdict") == "pass"]
+    wrote_nothing = [l for l in state["order"] if state["contestants"][l].get("verdict") == "no_artifact"]
+    # The headline a skimming reader would otherwise have to assemble from the table.
+    if len(passed) == n:
+        headline = f"All {n} attempts got every check right."
+    elif len(passed) == 1:
+        headline = f"One of {n} attempts got every check right: **{passed[0]}**."
+    elif passed:
+        headline = f"{len(passed)} of {n} attempts got every check right: **{', '.join(passed)}**."
+    else:
+        headline = f"None of the {n} attempts got every check right."
+    if wrote_nothing:
+        headline += f" {len(wrote_nothing)} wrote nothing at all."
     lines = [
         MARKER,
-        f"### {len(state['contestants'])} attempts at `{pack['name']}` v{pack['version']}, judged",
+        f"### {n} attempts at `{pack['name']}` v{pack['version']}, judged",
+        "",
+        headline,
         "",
         f"Each attempt ran alone in its own copy of the tree, with the same brief and the same "
         f"ceilings: **{policy['max_turns']} turns · {policy['max_completion_tokens']} completion tokens · "
@@ -213,6 +229,27 @@ def reveal_comment(round_dir: Path, identities: dict, chosen: str, pr_url: str |
                     f"{rec.get('completion_tokens')} | {rec.get('reasoning_tokens')} | {cost_s} | "
                     f"{rec.get('latency_s')}s |")
     rows += ["", "Cost is the provider's own figure where it reports one; there is no price table in this tool."]
+    # One sentence of English for what the table shows, because a reveal that says "reasoning
+    # tokens" is addressed to a developer and the person choosing may not be one.
+    by_model: dict[str, list[str]] = {}
+    for label in state["order"]:
+        by_model.setdefault(identities.get(label, "?"), []).append(label)
+    said = []
+    for spec, labels in by_model.items():
+        if len(labels) < 2:
+            continue
+        verdicts = {l: state["contestants"][l].get("verdict") for l in labels}
+        if len(set(verdicts.values())) > 1:
+            _, model = parse_model(spec)
+            parts = ", ".join(f"{'passed' if v == 'pass' else 'failed'} as {l}" for l, v in verdicts.items())
+            said.append(f"**{model}** was entered {len(labels)} times and {parts} — the same model, the same "
+                        f"task, the same ceilings.")
+    chosen_spec = identities.get(chosen, "?")
+    _, chosen_model = parse_model(chosen_spec)
+    rec = json.loads((round_dir / chosen / "receipt.json").read_text()) if (round_dir / chosen / "receipt.json").exists() else {}
+    said.append(f"You chose **{chosen}** without knowing it was {chosen_model}. It took {rec.get('turns')} turns "
+                f"and {rec.get('latency_s')}s.")
+    rows += [""] + said
     if pr_url:
         rows += ["", f"The chosen attempt is now a pull request: {pr_url}", "",
                  "Merging it is the approval. Nothing has been written to the default branch."]

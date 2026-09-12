@@ -1,0 +1,11 @@
+name = "split-the-bill"
+version = "1"
+
+[task]
+entrypoint = "solution.py"
+summary = "Split a bill N ways so the shares add back up to the bill, to the penny."
+
+[budget]
+max_turns = 6
+max_tokens = 6000
+wall_seconds = 240

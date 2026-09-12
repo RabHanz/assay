@@ -116,19 +116,23 @@ def defects(comparison: dict) -> dict[str, str]:
         said = None
         for r in comparison.get("rows", []):
             flags = (r.get("wrong") or {}).get(cand) or []
-            for i, bad in enumerate(flags):
-                if not bad:
-                    continue
-                got = r["cells"][cand][i]
-                want = r["expected"][i]
-                if str(got).startswith("—"):
-                    said = f"stops with an error on “{r['label'].lower()}”"
-                else:
-                    said = (f"puts “{r['label'].lower()}” on {got} where it should be {want}"
-                            + (f" — {r['why']}" if r.get("why") else ""))
-                break
-            if said:
-                break
+            bad_idx = [i for i, bad in enumerate(flags) if bad]
+            if not bad_idx:
+                continue
+            # The rightmost wrong cell: in a row that ends with a total it is the total, which
+            # is the one a reader recognises ("£99.99 under a £100.00 bill"); in a schedule it is
+            # the latest date, which is where a skipped week shows.
+            i = bad_idx[-1]
+            got = r["cells"][cand][i]
+            want = r["expected"][i]
+            col = (comparison.get("columns") or [None] * (i + 1))[i] if i < len(comparison.get("columns") or []) else None
+            where = f"“{r['label'].lower()}”" + (f", {col}" if col else "")
+            if str(got).startswith("—"):
+                said = f"stops with an error on {where}"
+            else:
+                said = (f"{where}: {got}, where it should be {want}"
+                        + (f" — {r['why']}" if r.get("why") else ""))
+            break
         out[cand] = said
     return out
 
