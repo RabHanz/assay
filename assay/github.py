@@ -36,6 +36,7 @@ CHOICE = re.compile(r"^[^\S\n]*/assay\s+choose\s+([A-Za-z])\b", re.M)
 PACK = re.compile(r"^\s*pack:\s*([A-Za-z0-9._/-]+)\s*$", re.M | re.I)
 MODELS = re.compile(r"^\s*models:\s*(.+?)\s*$", re.M | re.I)
 MARKER = "<!-- assay:board -->"
+REVEAL_MARKER = "<!-- assay:reveal -->"
 
 
 class GhError(RuntimeError):
@@ -225,13 +226,29 @@ def may_decide(repo: str, login: str) -> bool:
     return perm in DECIDERS
 
 
-def find_choice(repo: str, number: int, after: str | None = None) -> tuple[str, str, bool] | None:
-    """The first `/assay choose X` comment after `after`. Returns (label, author, authorised)."""
+def find_choice(repo: str, number: int, refused: set[str] | None = None) -> tuple[str, str, bool] | None:
+    """The first choice in the thread that has not already been answered.
+
+    Positioned by the thread itself rather than by a clock: everything before the board comment
+    is prologue, a reveal comment means the decision is already made, and a refusal we have
+    already posted is remembered by comment id. A wall-clock cursor loses any choice made while
+    the process was restarting — which happened the first time this ran.
+    """
     issue = read_issue(repo, number)
-    for c in issue.get("comments") or []:
-        if after and c.get("createdAt", "") <= after:
+    comments = issue.get("comments") or []
+    seen_board = False
+    for c in comments:
+        body = c.get("body") or ""
+        if REVEAL_MARKER in body:
+            return None  # already decided
+        if MARKER in body:
+            seen_board = True
             continue
-        m = CHOICE.search(c.get("body") or "")
+        if not seen_board:
+            continue
+        if c.get("url") in (refused or set()):
+            continue
+        m = CHOICE.search(body)
         if m:
             who = (c.get("author") or {}).get("login", "?")
             return m.group(1).upper(), who, may_decide(repo, who)
@@ -280,25 +297,28 @@ def serve_issue(repo: str, number: int, round_dir: Path, interval: int = 20,
                 target_path: str | None = None, timeout: int = 3600) -> dict:
     """Wait for a human to choose in the thread, then reveal and open the pull request."""
     identities = json.loads((round_dir / "identities.json").read_text())
-    started = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    refused: set[str] = set()
     print(f"waiting for `/assay choose <label>` on {repo}#{number} …", flush=True)
     deadline = time.time() + timeout
     while time.time() < deadline:
-        choice = find_choice(repo, number, after=started)
+        choice = find_choice(repo, number, refused=refused)
         if choice:
             label, who, authorised = choice
+            issue = read_issue(repo, number)
+            url = next((c.get("url") for c in reversed(issue.get("comments") or [])
+                        if CHOICE.search(c.get("body") or "")), None)
             if not authorised:
                 gh("issue", "comment", str(number), "--repo", repo, "--body-file", "-",
                    stdin=(f"@{who} — a choice here opens a pull request against this repository, so it is "
                           f"taken only from an account with write access. Your permission on this repo does "
                           f"not include it, so nothing has moved. The board above is unchanged and still blind."))
                 print(f"{who} chose {label} without write access; refused", flush=True)
-                started = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                refused.add(url)
                 continue
             if label not in identities:
                 gh("issue", "comment", str(number), "--repo", repo, "--body-file", "-",
                    stdin=f"`{label}` is not one of the candidates ({', '.join(sorted(identities))}).")
-                started = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                refused.add(url)
                 continue
             print(f"{who} chose {label}", flush=True)
             state = json.loads((round_dir / "state.json").read_text())
