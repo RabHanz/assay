@@ -1,0 +1,83 @@
+# assay, living in this repository.
+#
+# Label an issue `assay` and several models attempt what it describes, each alone; a check they
+# cannot read judges what they produced; the board of what each one PRODUCES arrives on the
+# issue. Reply `/assay choose B` and the reveal posts and a pull request opens. Merging it is
+# the approval — no step here ever merges.
+#
+# To carry this into your own repository: copy this file, add a GEMINI_API_KEY (and optionally
+# OPENROUTER_API_KEY) secret, put a pack under packs/, and label an issue.
+
+name: assay
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: assay-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  round:
+    if: github.event_name == 'issues' && github.event.label.name == 'assay'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: run the round and post the blind board
+        id: round
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: python -m assay.actions round "${{ github.repository }}" "${{ github.event.issue.number }}"
+      - name: keep the round for the choice
+        uses: actions/upload-artifact@v4
+        with:
+          name: assay-round-${{ github.event.issue.number }}
+          path: ${{ steps.round.outputs.round_dir }}
+          retention-days: 30
+          if-no-files-found: error
+
+  choose:
+    if: github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/assay choose')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: find the round that posted the board
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -m assay.actions run-id "${{ github.repository }}" "${{ github.event.issue.number }}"
+      - name: fetch that round's workspaces
+        if: steps.find.outputs.run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: assay-round-${{ github.event.issue.number }}
+          path: round
+          run-id: ${{ steps.find.outputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: reveal and open the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSAY_COMMENT_BODY: ${{ github.event.comment.body }}
+          ASSAY_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          ASSAY_COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+          ASSAY_ROUND_DIR: round
+          ASSAY_TARGET_PATH: demo/recurrence.py
+        run: python -m assay.actions choose "${{ github.repository }}" "${{ github.event.issue.number }}"
