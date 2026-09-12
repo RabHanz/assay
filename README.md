@@ -23,6 +23,30 @@ Four outcomes, deliberately kept apart, because collapsing them is how a scorebo
 
 Every receipt carries completion tokens, reasoning tokens, cost and elapsed time as reported by the provider itself, never estimated from a price table. Turns, tokens and wall-clock are three separate ceilings enforced by the host, and the board always says which policy it ran under, because a token ceiling is a judging policy rather than a neutral setting.
 
+## One round is a sample, not a verdict
+
+The first thing this tool measured was its own limit. Two models, the same pack, the same
+ceilings, five runs each:
+
+```
+ passed     tokens min–max  median  model
+   3/5             951–2015    1165  gemini-3.1-flash-lite
+   2/5            1288–2715    1439  gemini-3.5-flash-lite
+```
+
+Every run finished cleanly — no ceilings hit, no provider errors. The same model simply solves
+the task on some attempts and not others, and on two consecutive rounds these two swapped
+places. So a board from one round tells you what happened once. `assay repeat` is the answer:
+
+```bash
+python -m assay repeat packs/chore-recurrence --models a,b --n 5
+```
+
+It reports a pass rate, the token spread, and every distinct failing case each model produced.
+The failing cases are worth as much as the rate: one of these two kept missing a fortnightly
+rule, the other missed the month-end clamp — the same case two unrelated paid vendors failed in
+an earlier measurement.
+
 ## What we found while building it
 
 On one recurrence task with seven hidden cases, free models alone: one passed, one spent 7,464 of its 8,000 tokens reasoning and never wrote a file, one provider returned 503 through three retries, and an earlier contender missed a single edge case. On an easier task every model passed, which is why an easy task is a cost benchmark and never a quality one.

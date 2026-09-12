@@ -28,6 +28,17 @@ def cmd_run(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_repeat(a: argparse.Namespace) -> int:
+    from .reliability import repeat, table
+    specs = [s.strip() for s in a.models.split(",") if s.strip()]
+    print(f"repeat: {len(specs)} models × {a.n} runs on {a.pack}", flush=True)
+    report = repeat(a.pack, specs, a.n, a.runs, allow_exec=a.allow_exec)
+    print()
+    print(table(report))
+    print(f"report: {report['path']}")
+    return 0
+
+
 def cmd_models(a: argparse.Namespace) -> int:
     import urllib.request
     from .providers import PROVIDERS, _load_keys
@@ -62,6 +73,13 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--allow-exec", action="store_true", help="give models run_python (executes model-authored code here)")
     r.add_argument("--seed", type=int, default=None)
     r.set_defaults(fn=cmd_run)
+    rp = sub.add_parser("repeat", help="run the same pack N times per model and report pass rates")
+    rp.add_argument("pack")
+    rp.add_argument("--models", required=True)
+    rp.add_argument("--n", type=int, default=5)
+    rp.add_argument("--runs", default="runs")
+    rp.add_argument("--allow-exec", action="store_true")
+    rp.set_defaults(fn=cmd_repeat)
     m = sub.add_parser("models", help="list model ids a provider offers")
     m.add_argument("provider", choices=["openrouter", "gemini"])
     m.add_argument("--grep", default="")
