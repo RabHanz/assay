@@ -5,135 +5,219 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>assay — round</title>
 <style>
+/* ── tokens ──────────────────────────────────────────────────────────────
+   Ground, panel and rule values are sampled off the two Linear references in
+   the taste library (near-black #08090b ground, panels one step lighter, the
+   panel edge at #1c1b20). Syntax hues are sampled off the same diff frame:
+   keyword #bb78ab, string #d0b389, call #64a0a8, number #c1a06b — a rose/tan/
+   teal set, deliberately not the indigo an unbriefed dark theme reaches for.
+   The accent is warm bone. Green, red and amber are all spoken for by verdict
+   and stop-reason marks, so the chosen pane is carried by temperature and
+   value instead: on a page where nothing else is warm or lit, the one pane
+   about to be written into the repository is the one pane that looks printed. */
 :root{
-  --paper:#f6f5f2; --panel:#fff; --ink:#16161a; --ink2:#3d3d46; --muted:#71717a;
-  --line:#e2e1dc; --line2:#efeee9;
-  --ok:#1d6b43; --bad:#a32b23; --warn:#8a5a10;
-  --add:rgba(29,107,67,.10); --del:rgba(163,43,35,.09);
-  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --ground:#08090b; --panel:#0d0e10; --well:#0a0b0d; --lift:#121315;
+  --rule:#1a1b1e; --rule2:#232427;
+  --ink:#d8d7dc; --ink2:#9b9ca1; --ink3:#6f7076; --ink4:#54555a;
+  --pass:#4f9d6a; --fail:#cc5c50; --absent:#8a8b91; --warn:#c0913f;
+  --accent:#e9e2d1; --accent-dim:#8e8878;
+  --add:rgba(79,157,106,.085); --del:rgba(204,92,80,.085);
+  --add-edge:#2f6b46; --del-edge:#8c3d36;
+  --kw:#b578a6; --str:#c8ab84; --num:#c1a06b; --call:#6ba0a6; --com:#5f6065; --code:#a7a8ad;
+  /* JetBrains Mono first, on purpose: this is a developer tool, the face is free
+     and widely installed, and it is the closest offline match to the Berkeley Mono
+     the reference uses — same engineered low-contrast grotesk-mono, tall x-height,
+     built to be read at 11px. Everything machine-produced is set in it. Prose falls
+     to the platform's own UI grotesk (SF Pro, Segoe UI Variable, Roboto), which is
+     already tuned for small dark-mode text and is not Inter. */
+  --mono:"JetBrains Mono","JetBrainsMono Nerd Font",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Roboto,"Helvetica Neue","Liberation Sans",Arial,sans-serif;
 }
-*{box-sizing:border-box}
+*{box-sizing:border-box;min-width:0}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--paper);color:var(--ink);font:400 13px/1.5 var(--sans);
-  font-variant-numeric:tabular-nums;padding:20px;max-width:1680px}
-p{margin:0}
-.mono{font-family:var(--mono);font-size:12px}
-.mut{color:var(--muted)}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font:400 12px/1.45 var(--mono);font-variant-numeric:tabular-nums;
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100dvh}
+p,dl,dd,ul{margin:0}
+.k{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink4)}
+.dim{color:var(--ink3)}
 
-/* ── header ─────────────────────────────────────────────────────────── */
-.head{background:var(--panel);border:1px solid var(--line);margin-bottom:14px}
-.hrow{display:flex;align-items:baseline;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line2);flex-wrap:wrap}
-.mark{font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:12px}
-.rid{font-family:var(--mono);font-size:11.5px;color:var(--muted);word-break:break-all}
+/* ── identity bar ───────────────────────────────────────────────────────── */
+.topbar{display:flex;align-items:center;gap:14px;padding:0 14px;height:38px;
+  border-bottom:1px solid var(--rule);flex:none}
+.mark{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--ink)}
+.rid{font-size:11px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .grow{flex:1 1 auto}
-.hgrid{display:flex;gap:0;border-bottom:1px solid var(--line2);flex-wrap:wrap}
-.hcell{padding:10px 14px;flex:1 1 260px;min-width:0;border-right:1px solid var(--line2)}
-.hcell:last-child{border-right:0;flex:2 1 420px}
-.k{display:block;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
-.brief{color:var(--ink2);max-height:4.6em;overflow:auto}
-.standing{padding:10px 14px;display:grid;gap:4px}
-.standing p{font-size:12.5px;color:var(--ink2)}
-.standing .lead{color:var(--ink)}
-.conn{padding:8px 14px;border-top:1px solid var(--line2);color:var(--bad);font-size:12px}
+.flags{display:flex;align-items:center;gap:14px;flex:none}
+.flag{display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink2);white-space:nowrap}
+.flag.on{color:var(--accent)}
+/* a commit hash is hex and case-carrying: it never goes through text-transform */
+.flag .lit{text-transform:none;letter-spacing:0;font-size:11px}
 
-/* ── panes ──────────────────────────────────────────────────────────── */
-.panes{display:grid;gap:14px;grid-template-columns:1fr;align-items:stretch}
-/* 290px lets four contestants sit on one row at 1280 — a four-pane round is the common case
-   (one pass, one fail, one that ran out of budget, one that returned nothing) and a pane that
-   falls below the fold is a pane nobody compares. */
-@media(min-width:900px){.panes{grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}}
-.pane{background:var(--panel);border:1px solid var(--line);min-width:0;display:flex;flex-direction:column}
-.pane.picked{border-color:var(--ink)}
-.phead{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line)}
-.pane.picked .phead{background:var(--ink);color:#fff;border-color:var(--ink)}
-.pane.picked .phead .st{color:#d8d8d4}
-.lbl{font:600 15px/1 var(--sans);letter-spacing:.08em;width:1.2em}
-.st{font-size:12px;color:var(--ink2);display:flex;align-items:center;gap:6px}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--muted);flex:none}
-.dot.run{background:var(--ok);animation:pulse 1.6s ease-in-out infinite}
-.dot.done{background:var(--ink2)}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
-@media(prefers-reduced-motion:reduce){.dot.run{animation:none}}
-.sec{padding:10px 12px;border-bottom:1px solid var(--line2)}
-.sec:last-child{border-bottom:0}
+/* marks: a verdict is a shape, a stop reason is a bar. Two families that
+   cannot be misread for one another, each also carrying its own word. */
+.m{flex:none;display:inline-block;width:8px;height:8px;background:currentColor}
+.m.hollow{background:none;border:1.5px solid currentColor}
+.m.turn{transform:rotate(45deg)}
+.m.stop{width:2px;height:11px}
+.m.dot{width:6px;height:6px;border-radius:50%}
+.m.dot.live{animation:beat 1.7s ease-in-out infinite}
+@keyframes beat{0%,100%{opacity:1}50%{opacity:.18}}
+@media(prefers-reduced-motion:reduce){.m.dot.live{animation:none}}
 
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{font:500 11px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;
-  padding:5px 7px;border:1px solid var(--line);color:var(--ink2);background:#fbfbfa;
-  /* A chip wraps rather than running past its pane: at four panes the longest label
-     ("empty output — billed, nothing returned") is wider than a 290px column, and a clipped
-     chip is a fact the reader does not get. */
-  white-space:normal;line-height:1.25;max-width:100%}
-.chip.ok{color:var(--ok);border-color:rgba(29,107,67,.35);background:var(--add)}
-.chip.bad{color:var(--bad);border-color:rgba(163,43,35,.35);background:var(--del)}
-.chip.warn{color:var(--warn);border-color:rgba(138,90,16,.35);background:rgba(138,90,16,.08)}
-.chip.pick{background:var(--ink);color:#fff;border-color:var(--ink)}
-.note{font-size:12px;color:var(--muted);margin-top:7px}
-.fails{list-style:none;margin:8px 0 0;padding:0;border-top:1px solid var(--line2)}
-.fails li{display:flex;flex-wrap:wrap;gap:4px 10px;padding:5px 0;border-bottom:1px solid var(--line2);
-  font-family:var(--mono);font-size:11.5px}
-.fails .case{color:var(--ink2)}
-.fails .got{color:var(--bad)}
-.tool{font-family:var(--mono);font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* ── contract strip ─────────────────────────────────────────────────────── */
+.contract{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--rule);flex:none}
+.cell{padding:8px 14px;border-right:1px solid var(--rule);flex:0 1 auto;min-width:0}
+.cell:last-child{border-right:0;flex:1 1 300px}
+.cell .k{display:block;margin-bottom:4px}
+.cell .v{font-size:11.5px;color:var(--ink)}
+.cell .v em{font-style:normal;color:var(--ink3)}
+.task{font-size:11px;line-height:1.5;color:var(--ink2);white-space:pre-wrap;
+  max-height:3em;overflow:auto;font-family:var(--mono)}
+.honest{padding:7px 14px;border-bottom:1px solid var(--rule);flex:none;
+  font-family:var(--sans);font-size:11.5px;line-height:1.55;color:var(--ink3)}
+.honest b{font-weight:500;color:var(--ink2)}
+.conn{padding:7px 14px;border-bottom:1px solid var(--rule);flex:none;
+  font-family:var(--sans);font-size:11.5px;color:var(--fail)}
+.stage{padding:8px 14px;border-bottom:1px solid var(--rule);flex:none;
+  font-family:var(--sans);font-size:12px;line-height:1.5;color:var(--ink2)}
+.stage b{font-weight:500;color:var(--ink)}
 
-.dhead{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);
-  padding:8px 12px;border-bottom:1px solid var(--line2)}
-.dhead b{font-weight:500;letter-spacing:.08em;text-transform:uppercase}
-.dhead .file{font-family:var(--mono)}
-.diff{overflow:auto;max-height:260px;background:#fcfcfb;border-bottom:1px solid var(--line2)}
-.diff .ln{display:block;font-family:var(--mono);font-size:11.5px;line-height:1.55;white-space:pre;
-  padding:0 12px;min-width:100%;width:max-content}
-.diff .add{background:var(--add)}
-.diff .del{background:var(--del)}
-.diff .hunk{color:var(--muted);background:#f3f3f0}
-.diff .meta{color:var(--muted)}
-.dempty{padding:14px 12px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line2)}
+/* ── panes ──────────────────────────────────────────────────────────────── */
+.panes{display:grid;grid-template-columns:1fr;flex:1 1 auto;min-height:0}
+@media(min-width:900px){
+  body{height:100dvh;overflow:hidden}
+  .panes{grid-template-columns:repeat(var(--n,4),minmax(0,1fr));min-height:520px}
+  .pane + .pane{border-left:1px solid var(--rule)}
+}
+@media(max-width:899px){.pane + .pane{border-top:1px solid var(--rule2)}}
+.pane{display:flex;flex-direction:column;min-height:0;position:relative}
+.rail{height:2px;flex:none;background:var(--rule2)}
+.pane.picked{background:var(--panel)}
+.pane.picked::after{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;
+  background:var(--accent);pointer-events:none}
 
-.rev{display:grid;gap:0}
-.rev .row{display:flex;gap:10px;padding:4px 0;border-bottom:1px solid var(--line2);font-size:12px}
-.rev .row:last-child{border-bottom:0}
-.rev dt{flex:0 0 118px;color:var(--muted);margin:0}
-.rev dd{margin:0;min-width:0;word-break:break-word}
-.hidden-note{font-size:12px;color:var(--muted)}
+.phead{display:flex;align-items:center;gap:10px;padding:9px 14px 8px;flex:none}
+.lbl{font-size:15px;letter-spacing:.06em;color:var(--ink)}
+.pane.picked .lbl{color:var(--accent)}
+.phase-st{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--ink3);
+  margin-left:auto;text-align:right}
 
-.actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-top:1px solid var(--line);margin-top:auto}
-button{font:500 12.5px/1 var(--sans);color:var(--ink);background:#fff;border:1px solid var(--ink);
-  padding:8px 13px;cursor:pointer}
-button:hover:enabled{background:var(--ink);color:#fff}
-button:disabled{cursor:not-allowed;color:var(--muted);border-color:var(--line);background:#fbfbfa}
-button.go{background:var(--ink);color:#fff}
-button.go:hover:enabled{background:#000}
-button.go:disabled{background:#fbfbfa;color:var(--muted);border-color:var(--line)}
-.hint{font-size:11.5px;color:var(--muted)}
-.hint.err{color:var(--bad)}
-.applied .row{display:flex;gap:10px;padding:4px 0;font-size:12px;border-bottom:1px solid var(--line2)}
-.applied .row span:first-child{flex:0 0 118px;color:var(--muted)}
-.foot{margin-top:14px;font-size:11.5px;color:var(--muted)}
-.pnote{margin:0 0 12px;font-size:12.5px;color:var(--ink2);border-left:2px solid var(--ink);padding-left:9px}
+/* Equalised from JS to the tallest pane's facts, capped, so every diff in the row
+   starts on the same line. Four diffs that begin at four different heights cannot be
+   read across, and reading across is the whole job. */
+.facts{padding:2px 14px 11px;flex:none;overflow:auto;scrollbar-width:thin;
+  scrollbar-color:#2b2c30 transparent}
+@media(min-width:900px){.facts{min-height:var(--fh,0px);max-height:var(--fh,none)}}
+.fact{display:flex;align-items:flex-start;gap:9px;padding:3.5px 0;font-size:11px;line-height:1.35}
+.fact > .k{flex:0 0 54px;padding-top:2px}
+.fact .val{display:flex;align-items:center;gap:7px;min-width:0;flex-wrap:wrap}
+.fact .m{margin-top:1px}
+.word{letter-spacing:.1em;text-transform:uppercase;font-size:10.5px}
+.word.pass{color:var(--pass)} .word.fail{color:var(--fail)}
+.word.absent{color:var(--absent)} .word.warn{color:var(--warn)}
+.qty{color:var(--ink3);font-size:10.5px}
+.why{font-family:var(--sans);font-size:11px;line-height:1.45;color:var(--ink3);
+  padding:7px 0 0;max-width:42ch}
+/* the check's own words, so they are set as machine output rather than as prose */
+.why.said{font-family:var(--mono);font-size:10.5px;line-height:1.5;color:var(--ink4);
+  max-width:none;overflow-wrap:anywhere}
+.cases{list-style:none;padding:8px 0 0;border-top:1px solid var(--rule);margin-top:9px}
+.cases li{padding:4px 0;font-size:10.5px;line-height:1.4}
+.cases .c{color:var(--ink2);display:block;overflow-wrap:anywhere}
+.cases .g{color:var(--fail);display:block;overflow-wrap:anywhere}
+.cases .more{color:var(--ink4)}
+.tool{font-size:10.5px;color:var(--ink4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── diff: the thing being compared, so it gets the remaining height ────── */
+.dbar{display:flex;align-items:baseline;gap:9px;padding:6px 14px;flex:none;white-space:nowrap;
+  border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);background:var(--lift)}
+.dbar .file{font-size:10.5px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis}
+.dbar .k{overflow:hidden;text-overflow:ellipsis}
+.dbar .bytes{margin-left:auto;font-size:10px;color:var(--ink4);white-space:nowrap}
+.diff{flex:1 1 auto;min-height:180px;overflow:auto;background:var(--well);padding:5px 0;
+  scrollbar-width:thin;scrollbar-color:#2b2c30 transparent}
+.diff::-webkit-scrollbar{width:9px;height:9px}
+.diff::-webkit-scrollbar-thumb{background:#2b2c30}
+.diff::-webkit-scrollbar-track{background:transparent}
+@media(max-width:899px){.diff{max-height:340px;flex:none}}
+/* ligatures off: this is code under judgement, so -> must not render as → and != must
+   not render as ≠. A face that prettifies the operators is lying about the artefact. */
+.ln{display:block;font-size:11px;line-height:1.55;white-space:pre;font-variant-ligatures:none;
+  padding:0 12px 0 0;min-width:100%;width:max-content;color:var(--code);
+  border-left:2px solid transparent}
+.ln .sg{display:inline-block;width:2.2ch;padding-left:.6ch;color:var(--ink4)}
+.ln.add{background:var(--add);border-left-color:var(--add-edge)}
+.ln.add .sg{color:var(--pass)}
+.ln.del{background:var(--del);border-left-color:var(--del-edge)}
+.ln.del .sg{color:var(--fail)}
+.ln.hunk{background:var(--lift);color:var(--ink4)}
+.ln.meta{color:var(--ink4)}
+i{font-style:normal}
+.c-kw{color:var(--kw)} .c-str{color:var(--str)} .c-num{color:var(--num)}
+.c-call{color:var(--call)} .c-com{color:var(--com)}
+.dnone{flex:1 1 auto;min-height:180px;background:var(--well);padding:14px;
+  font-family:var(--sans);font-size:11.5px;line-height:1.5;color:var(--ink3)}
+@media(max-width:899px){.dnone{min-height:0;flex:none}}
+
+/* ── receipt ────────────────────────────────────────────────────────────── */
+/* Floored to the tallest receipt so the diffs also END on the same line. A floor and
+   not a ceiling: the applied pane carries a Landed block the others do not have, and
+   it is allowed to take the extra height rather than hide the commit behind a scroll. */
+.fslot{flex:none}
+@media(min-width:900px){.fslot{min-height:var(--rh,0px)}}
+.rec{flex:none;padding:9px 14px;border-top:1px solid var(--rule)}
+.rec .row{display:flex;gap:9px;padding:2px 0;font-size:10.5px;line-height:1.4}
+.rec dt{flex:0 0 54px;color:var(--ink4);font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase;padding-top:2px}
+.rec dd{color:var(--ink2);overflow-wrap:anywhere}
+/* a long absolute path is clamped rather than allowed to push the read-back diff
+   off the pane; the whole value stays in the title attribute */
+.rec dd.path{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rec dd b{font-weight:400;color:var(--ink)}
+/* one line, not a repeated English sentence: the blind policy is stated once in
+   the honesty strip, so each pane only needs to name the fields it is withholding */
+.sealed{flex:none;padding:9px 14px;border-top:1px solid var(--rule);
+  font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sealed .m{margin-right:8px;vertical-align:-1px}
+
+/* ── actions ────────────────────────────────────────────────────────────── */
+.act{flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:10px 14px;border-top:1px solid var(--rule);margin-top:auto}
+button{font:400 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink2);background:transparent;border:1px solid var(--rule2);
+  padding:8px 12px;cursor:pointer;transition:background .09s linear,color .09s linear,border-color .09s linear}
+button:focus-visible{outline:1px solid var(--accent);outline-offset:1px}
+/* the accent stays reserved for the pane that has been chosen. While the round is
+   still open every Choose button is a hairline, and lights only under the cursor. */
+button:hover:enabled{background:var(--accent);color:var(--ground);border-color:var(--accent)}
+button.go{color:var(--ground);background:var(--accent);border-color:var(--accent)}
+button.go:hover:enabled{background:#fff;border-color:#fff;color:var(--ground)}
+button:disabled{cursor:not-allowed;color:var(--ink4);border-color:var(--rule);background:transparent}
+.hint{font-family:var(--sans);font-size:11px;line-height:1.4;color:var(--ink4);flex:1 1 120px}
+.hint.err{color:var(--fail)}
+.foot{flex:none;padding:8px 14px;border-top:1px solid var(--rule);
+  font-size:10px;color:var(--ink4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
-<header class="head">
-  <div class="hrow">
-    <span class="mark">assay</span>
-    <span class="rid" id="rid">—</span>
-    <span class="grow"></span>
-    <span class="chips" id="phase" aria-live="polite"></span>
-  </div>
-  <div class="hgrid">
-    <div class="hcell"><span class="k">Pack</span><span id="pack" class="mono">—</span></div>
-    <div class="hcell"><span class="k">Entrypoint</span><span id="entry" class="mono">—</span></div>
-    <div class="hcell"><span class="k">Task given to every contestant</span><p class="brief" id="brief">—</p></div>
-  </div>
-  <div class="standing">
-    <p class="lead" id="policy-line">Ceilings: — turns · — completion tokens · — s — identical for every pane.</p>
-    <p id="pass-line">PASS means passed THIS pack's checks (pack — v—).</p>
-    <p class="mut">Blind mode hides identity, cost and latency until you choose. Normalisation reduces identifying cues; diff style and length can still leak.</p>
-  </div>
-  <p class="conn" id="conn" hidden></p>
-</header>
-<p class="pnote" id="phase-note" hidden></p>
+<div class="topbar">
+  <span class="mark">assay</span>
+  <span class="rid" id="rid">—</span>
+  <span class="grow"></span>
+  <span class="flags" id="flags" aria-live="polite"></span>
+</div>
+<div class="contract">
+  <div class="cell"><span class="k">Pack</span><span class="v" id="pack">—</span></div>
+  <div class="cell"><span class="k">File under test</span><span class="v" id="entry">—</span></div>
+  <div class="cell"><span class="k">Ceilings</span><span class="v" id="ceilings">—</span></div>
+  <div class="cell"><span class="k">Task given to every pane</span><p class="task" id="task">—</p></div>
+</div>
+<p class="honest" id="honest"></p>
+<p class="conn" id="conn" hidden></p>
+<p class="stage" id="stage" hidden></p>
 <main class="panes" id="panes"></main>
 <p class="foot" id="foot"></p>
 
@@ -142,24 +226,36 @@ button.go:disabled{background:#fbfbfa;color:var(--muted);border-color:var(--line
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const num = (v) => (v === null || v === undefined || v === "") ? "—" : Number(v).toLocaleString("en-US");
-const errors = Object.create(null);   // label -> last action error
-let lastRaw = "", pending = null;     // label whose POST is in flight
+const errors = Object.create(null);
+let lastRaw = "", pending = null;
 
-const STOPPED = {
-  done: "called done",
-  max_turns: "turn ceiling",
-  max_completion_tokens: "token ceiling",
-  wall_seconds: "time ceiling",
-  empty_output: "returned nothing",
-  no_tool_call: "no tool call",
-  transport_error: "transport error"
+/* verdict: shape carries good/bad, fill carries produced/absent, word carries the rest */
+const VERDICT = {
+  pass:        {word: "pass",        tone: "pass",   shape: ""},
+  fail:        {word: "fail",        tone: "fail",   shape: "turn"},
+  no_artifact: {word: "no artifact", tone: "absent", shape: "hollow"},
+  check_error: {word: "check error", tone: "warn",   shape: "hollow turn"}
 };
-const CEILING = {max_turns: 1, max_completion_tokens: 1, wall_seconds: 1};
-const VERDICT = {pass: ["ok", "PASS"], fail: ["bad", "FAIL"],
-                 no_artifact: ["warn", "NO ARTIFACT"], check_error: ["warn", "CHECK ERROR"]};
-const STATUS = {queued: "queued — not started", running: "running", judging: "judging — running the pack's hidden check", done: "done"};
+const STOPPED = {
+  done:                  ["called done", 0],
+  max_turns:             ["turn ceiling", 1],
+  max_completion_tokens: ["token ceiling", 1],
+  wall_seconds:          ["time ceiling", 1],
+  empty_output:          ["returned nothing", 1],
+  no_tool_call:          ["no tool call", 1],
+  transport_error:       ["transport error", 1]
+};
+const WHY = {
+  max_turns:             "Stopped at a ceiling, not at a wrong answer. Read this apart from the verdict.",
+  max_completion_tokens: "Stopped at a ceiling, not at a wrong answer. Read this apart from the verdict.",
+  wall_seconds:          "Stopped at a ceiling, not at a wrong answer. Read this apart from the verdict.",
+  transport_error:       "The request failed in transport. That is our side or the provider's, not the model's answer.",
+  no_tool_call:          "It answered in prose instead of calling a tool, and was stopped after one nudge.",
+  empty_output:          "It spent its budget and returned nothing visible. The tokens were billed."
+};
+const RUNSTATE = {queued: "not started", running: "running", judging: "running the hidden check", done: "done"};
 
-/* ── polling ─────────────────────────────────────────────────────────── */
+/* ── polling ─────────────────────────────────────────────────────────────── */
 async function poll() {
   try {
     const r = await fetch("state.json", {cache: "no-store"});
@@ -175,14 +271,14 @@ async function poll() {
 function conn(msg) {
   const el = $("conn");
   el.hidden = !msg;
-  if (msg) el.textContent = "Cannot read the round state: " + msg + ". Retrying every second; the view below is the last state read.";
+  if (msg) el.textContent = "Cannot read the round state: " + msg + ". Retrying every second. What is below is the last state that was read.";
 }
 async function post(path, label, btn) {
   if (pending) return;
   pending = label;
   delete errors[label];
   const was = btn.textContent;
-  btn.disabled = true; btn.textContent = "working…";
+  btn.disabled = true; btn.textContent = "working";
   try {
     const r = await fetch(path, {method: "POST", headers: {"content-type": "application/json"},
                                  body: JSON.stringify({label: label})});
@@ -198,39 +294,46 @@ async function post(path, label, btn) {
   }
 }
 
-/* ── render ──────────────────────────────────────────────────────────── */
+/* ── render ──────────────────────────────────────────────────────────────── */
 function render(s) {
   const pack = s.pack || {}, pol = s.policy || {}, phase = s.phase || "unknown";
   const revealed = s.revealed === true;
   const chosen = (s.choice && s.choice.label) || null;
+  const pv = (pack.name || "—") + " v" + (pack.version || "—");
 
   $("rid").textContent = s.round_id || "—";
-  $("pack").textContent = (pack.name || "—") + " v" + (pack.version || "—");
+  $("pack").textContent = pv;
   $("entry").textContent = pack.entrypoint || "—";
-  $("brief").textContent = pack.brief_excerpt || "The pack's brief was not recorded in this state.";
+  $("task").textContent = pack.brief_excerpt || "The pack's brief was not recorded in this state.";
 
-  const flags = [chipHTML("", phase.toUpperCase())];
-  if (s.blind !== false) flags.push(chipHTML("", revealed ? "BLIND — REVEALED" : "BLIND"));
-  else flags.push(chipHTML("warn", "NOT BLIND"));
-  if (s.choice) flags.push(chipHTML("pick", "CHOSE " + s.choice.label));
-  if (s.apply && s.apply.commit) flags.push(chipHTML("ok", "APPLIED " + s.apply.commit));
-  $("phase").innerHTML = flags.join("");
+  let ceil = num(pol.max_turns) + " turns · " + num(pol.max_completion_tokens) +
+             " completion tok · " + num(pol.wall_seconds) + " s";
+  if (pol.allow_exec !== undefined) ceil += " · exec " + (pol.allow_exec ? "on" : "off");
+  $("ceilings").innerHTML = esc(ceil) + ' <em>· identical for every pane</em>';
 
-  let line = "Ceilings: " + num(pol.max_turns) + " turns · " + num(pol.max_completion_tokens) +
-             " completion tokens · " + num(pol.wall_seconds) + " s — identical for every pane.";
-  if (pol.allow_exec !== undefined) line += " Code execution " + (pol.allow_exec ? "allowed" : "off") + " in this round.";
-  $("policy-line").textContent = line;
-  $("pass-line").textContent = "PASS means passed THIS pack's checks (pack " + (pack.name || "—") + " v" + (pack.version || "—") + ").";
+  $("honest").innerHTML =
+    "<b>PASS</b> means this attempt passed the checks in pack " + esc(pv) +
+    ". It says nothing about the rest of the file.<br>" +
+    "Blind mode hides identity, cost and latency until you choose. Normalisation strips model names from the diffs; diff style and length can still leak.";
 
-  let pn = "";
+  const flags = [flagHTML("", phase)];
+  if (s.blind !== false) flags.push(flagHTML(revealed ? "hollow" : "", revealed ? "blind · revealed" : "blind"));
+  else flags.push(flagHTML("hollow", "not blind", "warn"));
+  if (s.choice) flags.push(flagHTML("stop", "chose", "on", s.choice.label));
+  if (s.apply && s.apply.commit) flags.push(flagHTML("stop", "applied", "on", s.apply.commit));
+  $("flags").innerHTML = flags.join("");
+
+  let stage = "";
   if (phase === "judged" && !s.choice)
-    pn = "Every pane is judged. Choosing one reveals the identity, cost and latency of all of them, and cannot be undone.";
+    stage = "Every pane is judged. Choosing one reveals every receipt, not only the one you pick, and cannot be undone.";
   else if (phase === "chosen" && s.choice)
-    pn = "You chose " + s.choice.label + " blind. Applying writes that pane's artefact into the working tree and commits it; the other workspaces are left alone.";
+    stage = "You chose <b>" + esc(s.choice.label) + "</b> blind. Applying writes that pane's " +
+            esc(pack.entrypoint || "file") + " into the working tree and commits it. The other workspaces stay where they are.";
   else if (phase === "applied" && s.apply)
-    pn = "Pane " + (s.apply.label || "—") + " was applied as commit " + (s.apply.commit || "—") + ". The diff below is read back from the working tree, not from the run.";
-  $("phase-note").textContent = pn;
-  $("phase-note").hidden = !pn;
+    stage = "<b>" + esc(s.apply.label || "—") + "</b> landed as commit <b>" + esc(s.apply.commit || "—") +
+            "</b>. The diff on that pane was read back from the working tree after the commit, not copied from the run.";
+  $("stage").innerHTML = stage;
+  $("stage").hidden = !stage;
 
   const cs = s.contestants || {};
   const order = (Array.isArray(s.order) ? s.order : []).filter((l) => cs[l]);
@@ -238,166 +341,227 @@ function render(s) {
 
   const keep = {};
   document.querySelectorAll(".diff[data-label]").forEach((d) => { keep[d.dataset.label + d.dataset.kind] = d.scrollTop; });
+  $("panes").style.setProperty("--n", String(Math.max(order.length, 1)));
   $("panes").innerHTML = order.map((l) => pane(l, cs[l] || {}, s, phase, revealed, chosen, pack)).join("") ||
-    '<p class="mut">No contestants in this round.</p>';
+    '<p class="stage">No contestants in this round.</p>';
   document.querySelectorAll(".diff[data-label]").forEach((d) => {
     const v = keep[d.dataset.label + d.dataset.kind]; if (v) d.scrollTop = v;
   });
   document.querySelectorAll("button[data-act]").forEach((b) => {
     b.addEventListener("click", () => post("/" + b.dataset.act, b.dataset.label, b));
   });
+  equalise();
 
   const t = [];
-  if (s.started_at) t.push("Round started " + s.started_at);
+  if (s.started_at) t.push("started " + s.started_at);
   if (s.finished_at) t.push("all panes judged " + s.finished_at);
   if (s.choice && s.choice.at) t.push("choice recorded " + s.choice.at);
   if (s.apply && s.apply.at) t.push("applied " + s.apply.at);
-  $("foot").textContent = t.join(" · ");
+  $("foot").textContent = t.join("   ·   ");
 }
 
-function chipHTML(kind, text) { return '<span class="chip ' + kind + '">' + esc(text) + "</span>"; }
+/* One height for every facts block, so the four diffs begin on the same line and the
+   eye can run across them. Capped at 260 px: a pane with a long failing-case list
+   scrolls its own facts rather than pushing the diffs off the bottom of the row. */
+function equalise() {
+  const box = $("panes");
+  box.style.removeProperty("--fh");
+  box.style.removeProperty("--rh");
+  if (window.innerWidth < 900) return;
+  const tall = (sel, cap, v) => {
+    const el = [...document.querySelectorAll(sel)];
+    if (el.length) box.style.setProperty(v, Math.min(cap, Math.max(...el.map((x) => x.scrollHeight))) + "px");
+  };
+  /* caps are a share of the row, not fixed pixels: on a short window the diff keeps
+     its majority, and on a tall one nothing gets silently cut off below the fold */
+  const row = box.getBoundingClientRect().height || 600;
+  const cap = (f, lo, hi) => Math.max(lo, Math.min(hi, Math.round(row * f)));
+  tall(".facts", cap(0.36, 120, 300), "--fh");
+  tall(".fslot > :first-child", cap(0.30, 110, 240), "--rh");
+}
+addEventListener("resize", equalise);
+
+function flagHTML(shape, word, tone, lit) {
+  return '<span class="flag' + (tone === "on" ? " on" : "") + '">' +
+    '<i class="m ' + shape + '" style="color:' + (tone === "warn" ? "var(--warn)" : tone === "on" ? "var(--accent)" : "var(--ink4)") + '"></i>' +
+    esc(word) + (lit ? ' <span class="lit">' + esc(lit) + "</span>" : "") + "</span>";
+}
+function fact(key, body) { return '<div class="fact"><span class="k">' + key + '</span><span class="val">' + body + "</span></div>"; }
+function mark(shape, tone) { return '<i class="m ' + shape + '" style="color:var(--' + tone + ')"></i>'; }
 
 function pane(label, c, s, phase, revealed, chosen, pack) {
   const picked = chosen === label;
   const status = c.status || "queued";
-  const dot = status === "running" ? "run" : (status === "done" ? "done" : "");
-  let stext = STATUS[status] || status;
-  if (status === "running" && c.turn) stext += " · turn " + num(c.turn) + " of " + num((s.policy || {}).max_turns);
+  const v = c.verdict ? VERDICT[c.verdict] : null;
 
-  /* chips: verdict, empty output and stop reason are three separate facts */
-  const chips = [];
-  if (c.verdict) {
-    const v = VERDICT[c.verdict] || ["", String(c.verdict).replace(/_/g, " ").toUpperCase()];
-    let text = v[1];
+  /* the rail is the at-a-glance read across all panes; it carries the verdict only */
+  const railColour = v ? "var(--" + v.tone + ")" : "var(--rule2)";
+
+  let head = RUNSTATE[status] || status;
+  if (status === "running" && c.turn) head = "turn " + num(c.turn) + " of " + num((s.policy || {}).max_turns);
+  const dot = status === "running" ? mark("dot live", "warn")
+            : status === "done" ? "" : mark("dot", "ink4");
+
+  /* three facts, three rows: what the check said, how it ended, whether anything came back */
+  const rows = [];
+  if (v) {
+    let q = "";
     if (c.verdict === "fail" && typeof c.failures_count === "number" && c.failures_count > 0)
-      text += " — " + c.failures_count + " failing case" + (c.failures_count === 1 ? "" : "s");
-    chips.push(chipHTML(v[0], text));
+      q = '<span class="qty">' + c.failures_count + " failing case" + (c.failures_count === 1 ? "" : "s") + "</span>";
+    rows.push(fact("verdict", mark(v.shape, v.tone) + '<span class="word ' + v.tone + '">' + v.word + "</span>" + q));
   } else if (status === "done") {
-    chips.push(chipHTML("", "NO VERDICT RECORDED"));
+    rows.push(fact("verdict", mark("hollow", "ink4") + '<span class="word dim">no verdict recorded</span>'));
   }
-  if (c.empty_output === true) chips.push(chipHTML("warn", "EMPTY OUTPUT — billed, nothing returned"));
-  if (c.stopped_because) chips.push(chipHTML("", "STOPPED — " + (STOPPED[c.stopped_because] || String(c.stopped_because).replace(/_/g, " "))));
-  if (picked) chips.push(chipHTML("pick", "CHOSEN"));
+  if (c.stopped_because) {
+    const st = STOPPED[c.stopped_because] || [String(c.stopped_because).replace(/_/g, " "), 1];
+    rows.push(fact("stopped", mark("stop", st[1] ? "warn" : "ink3") +
+      '<span class="word ' + (st[1] ? "warn" : "dim") + '">' + esc(st[0]) + "</span>"));
+  }
+  if (c.empty_output === true)
+    rows.push(fact("output", mark("stop", "warn") + '<span class="word warn">empty</span><span class="qty">billed, nothing returned</span>'));
 
-  let note = "";
-  if (CEILING[c.stopped_because]) note = "It stopped at a ceiling. That is a budget result, not a wrong answer — read it separately from the verdict.";
-  else if (c.stopped_because === "transport_error") note = "The request failed in transport. This is our side or the provider's, not the model's answer.";
-  else if (c.stopped_because === "no_tool_call") note = "It answered in prose instead of using the tools, and was stopped after one nudge.";
-  else if (c.stopped_because === "empty_output") note = "It spent its budget and returned no visible answer. The tokens were billed all the same.";
-  if (note) note = '<p class="note">' + note + "</p>";
+  let why = WHY[c.stopped_because] ? '<p class="why">' + WHY[c.stopped_because] + "</p>" : "";
   if (c.check_detail && (c.verdict === "check_error" || c.verdict === "no_artifact"))
-    note += '<p class="note mono">check says: ' + esc(c.check_detail) + "</p>";
+    why += '<p class="why said">check says: ' + esc(c.check_detail) + "</p>";
 
-  /* failing cases */
-  let fails = "";
   const list = Array.isArray(c.failures) ? c.failures : [];
+  let cases = "";
   if (list.length) {
-    fails = '<ul class="fails">' + list.map((f) => {
-      if (Array.isArray(f)) {
-        return "<li><span class=\"case\">" + esc(f[0]) + "</span><span class=\"got\">" + esc(f.slice(1).join(" · ")) + "</span></li>";
-      }
-      return '<li><span class="case">' + esc(f) + "</span></li>";
-    }).join("");
+    cases = '<ul class="cases">' + list.map((f) => Array.isArray(f)
+      ? '<li><span class="c">' + esc(f[0]) + '</span><span class="g">' + esc(f.slice(1).join(" · ")) + "</span></li>"
+      : '<li><span class="c">' + esc(f) + "</span></li>").join("");
     const more = (typeof c.failures_count === "number") ? c.failures_count - list.length : 0;
-    if (more > 0) fails += '<li><span class="mut">' + more + " further failing case" + (more === 1 ? "" : "s") + " not shown</span></li>";
-    fails += "</ul>";
+    if (more > 0) cases += '<li class="more">' + more + " further failing case" + (more === 1 ? "" : "s") + " not shown</li>";
+    cases += "</ul>";
   }
+  const tool = (status !== "done" && c.last_tool) ? '<p class="tool">last tool · ' + esc(c.last_tool) + "</p>" : "";
+  const facts = '<div class="facts">' + rows.join("") + why + cases + tool + "</div>";
 
-  const tool = c.last_tool ? '<p class="tool">last tool · ' + esc(c.last_tool) + "</p>" : "";
+  /* The diff is the largest thing on the page, because it is what is compared.
+     Once this pane has been applied the read-back takes the slot: the artefact diff's
+     base is the fixture, which is no longer what is in the repository, and showing a
+     stale base beside a fresh commit is the one thing this screen must not do. */
   const entry = pack.entrypoint || "the entrypoint";
+  const landedHere = picked && s.apply && s.apply.commit;
+  let bar, body;
+  if (landedHere && s.apply.diff_readback) {
+    bar = '<span class="file">' + esc(entry) + '</span><span class="k">read back from HEAD</span>' +
+      '<span class="bytes">' + esc(s.apply.commit) + "</span>";
+    body = diffHTML(s.apply.diff_readback, label, "back");
+  } else {
+    /* the byte count is only meaningful when something changed: printing the fixture's
+       own size beside an empty diff reads as "530 bytes of work", which is a lie */
+    bar = '<span class="file">' + esc(entry) + '</span><span class="k">fixture → workspace</span>' +
+      '<span class="bytes">' + (c.artifact_diff && c.artifact_bytes ? num(c.artifact_bytes) + " b"
+        : c.status === "done" ? "no change" : "") + "</span>";
+    if (c.artifact_diff) body = diffHTML(c.artifact_diff, label, "art");
+    else if (status !== "done") body = '<p class="dnone">The diff appears when this pane finishes and its check has run.</p>';
+    else if (c.verdict === "no_artifact") body = '<p class="dnone">No file was written. There is nothing to compare.</p>';
+    else if (landedHere) body = '<p class="dnone">The server recorded no read-back diff for this apply.</p>';
+    else body = '<p class="dnone">The file was written and is byte-identical to the fixture.</p>';
+  }
+  const diff = '<div class="dbar">' + bar + "</div>" + body;
 
-  /* the artefact diff — what the human actually compares */
-  let dbody;
-  if (c.artifact_diff) dbody = diffHTML(c.artifact_diff, label, "art");
-  else if (status !== "done") dbody = '<p class="dempty">The diff appears when this pane finishes and is judged.</p>';
-  else if (c.verdict === "no_artifact" || !c.artifact_bytes) dbody = '<p class="dempty">Nothing to compare — no file was written.</p>';
-  else dbody = '<p class="dempty">The file was written but is byte-identical to the fixture.</p>';
-  const diff = '<div class="dhead"><span><b>diff</b> · fixture → workspace · <span class="file">' + esc(entry) +
-    "</span></span><span>" + (c.artifact_bytes ? num(c.artifact_bytes) + " bytes" : "") + "</span></div>" + dbody;
-
-  /* identity, cost, latency — never before the choice is made */
-  let rev;
+  /* identity, cost, latency: one structural gate, and nothing below it renders before the choice */
+  let rec;
   if (revealed && c.reveal) {
     const r = c.reveal;
     const cost = (typeof r.cost_usd === "number")
-      ? "$" + r.cost_usd.toFixed(5) + (r.cost_source ? ' <span class="mut">· ' + esc(r.cost_source) + "</span>" : "")
+      ? "<b>$" + r.cost_usd.toFixed(5) + "</b>" + (r.cost_source ? " · " + esc(r.cost_source) : "")
       : esc(r.cost_source || "not reported");
-    rev = '<div class="sec"><span class="k">Receipt</span><dl class="rev">' +
-      row("model", '<span class="mono">' + esc(r.model || "—") + "</span>") +
-      row("provider", esc(r.provider || "—")) +
-      row("turns", num(r.turns !== undefined && r.turns !== null ? r.turns : c.turn)) +
-      row("completion tok", num(r.completion_tokens)) +
-      row("reasoning tok", num(r.reasoning_tokens)) +
-      row("prompt tok", num(r.prompt_tokens)) +
+    /* one short row each, so four receipts stay a comparable ledger rather than four
+       wrapping paragraphs, and "wrote 8,000 completion" lines up with "token ceiling" */
+    rec = '<div class="rec"><span class="k">Receipt</span><dl>' +
+      row("model", "<b>" + esc(r.model || "—") + "</b>") +
+      row("via", esc(r.provider || "—") + " · " +
+                 num(r.turns !== undefined && r.turns !== null ? r.turns : c.turn) + " turns") +
+      row("wrote", "<b>" + num(r.completion_tokens) + "</b> completion · " +
+                   num(r.reasoning_tokens) + " reasoning") +
+      row("read", num(r.prompt_tokens) + " prompt") +
       row("cost", cost) +
-      row("latency", (typeof r.latency_s === "number" ? r.latency_s.toFixed(1) + " s" : "—")) +
+      row("latency", (typeof r.latency_s === "number" ? "<b>" + r.latency_s.toFixed(1) + "</b> s" : "—")) +
       "</dl></div>";
   } else if (revealed) {
-    rev = '<div class="sec"><p class="hidden-note">This pane has no receipt recorded.</p></div>';
+    rec = '<div class="sealed"><i class="m hollow" style="color:var(--ink4)"></i>no receipt recorded</div>';
   } else {
-    rev = '<div class="sec"><p class="hidden-note">Identity, cost, tokens and latency stay hidden until you choose. Judge the diff.</p></div>';
+    rec = '<div class="sealed"><i class="m hollow" style="color:var(--ink4)"></i>sealed until you choose</div>';
   }
 
-  /* actions */
+  /* what landed, read back from the working tree */
+  let landed = "";
+  if (landedHere) {
+    /* the timestamp is already in the footer, so this block keeps only what the
+       reader cannot get anywhere else: which commit, and which file on disk */
+    landed = '<div class="rec"><span class="k">Landed</span><dl>' +
+      row("commit", "<b>" + esc(s.apply.commit) + "</b>") +
+      '<div class="row"><dt>path</dt><dd class="path" title="' + esc(s.apply.path || "") + '">' +
+      esc(s.apply.path || "—") + "</dd></div></dl></div>";
+  }
+
   const acts = [];
   let hint = "";
   if (!s.choice) {
     const can = phase === "judged" && !pending;
-    acts.push('<button class="go" data-act="choose" data-label="' + label + '"' + (can ? "" : " disabled") + ">Choose " + label + "</button>");
-    if (can) hint = "";
-    else if (phase === "running") hint = "Available when every pane is judged.";
-    else hint = "Choosing is closed in phase " + phase + ".";
+    acts.push('<button data-act="choose" data-label="' + label + '"' + (can ? "" : " disabled") + ">choose " + label + "</button>");
+    if (!can) hint = phase === "running" ? "Available once every pane is judged." : "Choosing is closed in phase " + phase + ".";
   } else if (picked) {
-    const applied = !!(s.apply && s.apply.commit);
-    const can = phase === "chosen" && !applied && !pending;
+    const done = !!landedHere;
+    const can = phase === "chosen" && !done && !pending;
     acts.push('<button class="go" data-act="apply" data-label="' + label + '"' + (can ? "" : " disabled") + ">" +
-      (applied ? "Applied" : "Apply this result") + "</button>");
-    if (applied) hint = "Applied once. Re-applying is refused by the server.";
-    else if (!can) hint = "Applying is available in phase chosen; this round is in phase " + phase + ".";
-    else hint = "";
+      (done ? "applied" : "apply " + label + " to the tree") + "</button>");
+    if (done) hint = "Applied once. The server refuses a second apply.";
+    else if (!can) hint = "Applying is available in phase chosen. This round is in phase " + phase + ".";
   } else {
     hint = "Not chosen. Its workspace is kept, unapplied.";
   }
   if (errors[label]) hint = errors[label];
-  const actions = '<div class="actions">' + acts.join("") +
+  const actions = '<div class="act">' + acts.join("") +
     '<span class="hint' + (errors[label] ? " err" : "") + '">' + esc(hint) + "</span></div>";
 
-  /* what landed, after apply */
-  let applied = "";
-  if (picked && s.apply && s.apply.commit) {
-    applied = '<div class="sec"><span class="k">Applied</span><div class="applied">' +
-      '<div class="row"><span>commit</span><span class="mono">' + esc(s.apply.commit) + "</span></div>" +
-      '<div class="row"><span>path</span><span class="mono">' + esc(s.apply.path || "—") + "</span></div>" +
-      (s.apply.at ? '<div class="row"><span>at</span><span class="mono">' + esc(s.apply.at) + "</span></div>" : "") +
-      "</div>" +
-      (s.apply.diff_readback
-        ? '<div class="dhead" style="padding-left:0;padding-right:0"><span>read back from the working tree</span></div>' + diffHTML(s.apply.diff_readback, label, "back")
-        : '<p class="note">The server recorded no read-back diff for this apply.</p>') +
-      "</div>";
-  }
-
-  const facts = (chips.length || note || fails || tool)
-    ? '<div class="sec"><div class="chips">' + chips.join("") + "</div>" + note + fails +
-      (tool ? '<div style="margin-top:7px">' + tool + "</div>" : "") + "</div>"
-    : "";
   return '<section class="pane' + (picked ? " picked" : "") + '">' +
-    '<div class="phead"><span class="lbl">' + esc(label) + '</span><span class="st"><i class="dot ' + dot + '"></i>' + esc(stext) + "</span></div>" +
-    facts + diff + rev + applied + actions +
-    "</section>";
+    '<i class="rail" style="background:' + railColour + '"></i>' +
+    '<div class="phead"><span class="lbl">' + esc(label) + '</span>' +
+    '<span class="phase-st">' + dot + esc(head) + "</span></div>" +
+    facts + diff + '<div class="fslot">' + rec + landed + "</div>" + actions + "</section>";
 }
 
 function row(k, v) { return '<div class="row"><dt>' + k + "</dt><dd>" + v + "</dd></div>"; }
+
+/* ── diff rendering ──────────────────────────────────────────────────────── */
+const KW = new Set(("def return if elif else for while in not and or None True False import from as class try except " +
+  "finally raise with lambda yield pass break continue is assert global nonlocal del async await match case").split(" "));
+const CALLISH = /^[A-Za-z_]\w*$/;
+/* git's own framing around the payload — the read-back diff carries all of it */
+const META = /^(\+\+\+|---|diff --git |index |(new|deleted) file mode |(old|new) mode |similarity index |rename |copy |Binary files )/;
+
+/* one pass: comment, string, number, word. Everything else is escaped verbatim. */
+function code(src) {
+  /* highlighted one line at a time, so a docstring opener tints to end of line */
+  const re = /(#[^\n]*)|("""[\s\S]*?"""|'''[\s\S]*?'''|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|"""[^\n]*|'''[^\n]*)|(\b\d[\d_.]*\b)|([A-Za-z_]\w*)/g;
+  let out = "", last = 0, m;
+  while ((m = re.exec(src)) !== null) {
+    out += esc(src.slice(last, m.index));
+    const t = m[0];
+    let cls = m[1] ? "c-com" : m[2] ? "c-str" : m[3] ? "c-num"
+            : KW.has(t) ? "c-kw"
+            : (CALLISH.test(t) && src[re.lastIndex] === "(") ? "c-call" : "";
+    out += cls ? '<i class="' + cls + '">' + esc(t) + "</i>" : esc(t);
+    last = re.lastIndex;
+  }
+  return out + esc(src.slice(last));
+}
 
 function diffHTML(text, label, kind) {
   const lines = String(text).split("\n");
   if (lines.length && lines[lines.length - 1] === "") lines.pop();
   const html = lines.map((l) => {
-    let cls = "";
-    if (l.startsWith("+++") || l.startsWith("---")) cls = "meta";
-    else if (l.startsWith("@@")) cls = "hunk";
-    else if (l.startsWith("+")) cls = "add";
-    else if (l.startsWith("-")) cls = "del";
-    return '<span class="ln ' + cls + '">' + (l === "" ? "&nbsp;" : esc(l)) + "</span>";
+    if (META.test(l)) return '<span class="ln meta">' + esc(l) + "</span>";
+    if (l.startsWith("@@")) return '<span class="ln hunk">' + esc(l) + "</span>";
+    const sign = l[0] === "+" ? "add" : l[0] === "-" ? "del" : "";
+    const glyph = l[0] === "+" ? "+" : l[0] === "-" ? "−" : " ";
+    const rest = (sign || l[0] === " ") ? l.slice(1) : l;
+    return '<span class="ln ' + sign + '"><span class="sg">' + glyph + "</span>" +
+      (rest === "" ? "&nbsp;" : code(rest)) + "</span>";
   }).join("");
   return '<div class="diff" data-label="' + esc(label) + '" data-kind="' + kind + '" tabindex="0">' + html + "</div>";
 }
