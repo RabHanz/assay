@@ -41,6 +41,26 @@ def cmd_repeat(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_issue(a: argparse.Namespace) -> int:
+    from .github import run_for_issue, serve_issue
+    rnd = run_for_issue(a.repo, a.issue, a.runs, default_models=a.models or "", post=not a.dry_run)
+    if a.dry_run:
+        from .round import table
+        print(table(rnd.state, rnd.identity))
+        return 0
+    result = serve_issue(a.repo, a.issue, rnd.dir, interval=a.interval, target_path=a.target_path,
+                         timeout=a.timeout)
+    print(f"chose {result['label']} ({result['by']}){'  pr ' + result['pr'] if result['pr'] else ''}")
+    return 0
+
+
+def cmd_watch(a: argparse.Namespace) -> int:
+    from .github import watch
+    watch(a.repo, label=a.label, interval=a.interval, runs_dir=a.runs,
+          default_models=a.models or "", target_path=a.target_path, once=a.once)
+    return 0
+
+
 def cmd_models(a: argparse.Namespace) -> int:
     import urllib.request
     from .providers import PROVIDERS, _load_keys
@@ -88,6 +108,25 @@ def main(argv: list[str] | None = None) -> int:
     rp.add_argument("--max-turns", type=int, default=None)
     rp.add_argument("--wall", type=int, default=None)
     rp.set_defaults(fn=cmd_repeat)
+    iss = sub.add_parser("issue", help="run a round for a GitHub issue, post the blind board, wait for a choice, open the PR")
+    iss.add_argument("repo", help="owner/name")
+    iss.add_argument("issue", type=int)
+    iss.add_argument("--models", default="", help="fallback when the issue body has no `models:` line")
+    iss.add_argument("--runs", default="runs")
+    iss.add_argument("--interval", type=int, default=20)
+    iss.add_argument("--timeout", type=int, default=3600)
+    iss.add_argument("--target-path", default=None, help="path in the repo the artefact lands at (defaults to the pack entrypoint)")
+    iss.add_argument("--dry-run", action="store_true", help="run and print the board, post nothing")
+    iss.set_defaults(fn=cmd_issue)
+    w = sub.add_parser("watch", help="stay in the repository: every issue labelled `assay` gets a round, a board and a PR")
+    w.add_argument("repo", help="owner/name")
+    w.add_argument("--label", default="assay")
+    w.add_argument("--models", default="", help="fallback when an issue body has no `models:` line")
+    w.add_argument("--runs", default="runs")
+    w.add_argument("--interval", type=int, default=30)
+    w.add_argument("--target-path", default=None)
+    w.add_argument("--once", action="store_true", help="one sweep, then exit")
+    w.set_defaults(fn=cmd_watch)
     m = sub.add_parser("models", help="list model ids a provider offers")
     m.add_argument("provider", choices=["openrouter", "gemini"])
     m.add_argument("--grep", default="")

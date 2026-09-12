@@ -4,14 +4,28 @@ You have a real task in your own codebase, and several models that claim they ca
 
 Every leaderboard answers a different question. They rank models on somebody else's problems. Assay ranks them on yours, and it finishes with the work done rather than with a score.
 
-## How it works
+## It happens in your repository
 
-1. You write a pack: a brief, a starting tree, and an acceptance check.
-2. The check is written before any model sees the task, and it never enters the workspace. A model cannot read the cases grading it or overwrite its own grader.
-3. Each model works in its own isolated copy of the tree, through a real tool loop.
-4. The check judges what each model actually produced.
-5. You compare the results without being told which model made which. Identity, cost and latency stay hidden until your choice is committed.
-6. One approval applies exactly one result to your repository. The rest are discarded.
+You do not go anywhere to use this. The whole loop is an issue thread and a pull request.
+
+1. **You open an issue** describing the task, naming a pack and the models to try.
+2. **Each model works alone** in its own copy of the tree, through a real tool loop, with the
+   same brief and the same ceilings.
+3. **A check judges what they produced.** It was written before any of them saw the task and it
+   never enters their workspace, so no model can read the cases grading it or overwrite its grader.
+4. **The board arrives as a comment** on your issue: candidates A, B, C, their verdicts, why each
+   one stopped, and their diffs folded inline for GitHub to render. No model names, no costs, no
+   timings.
+5. **You choose in a reply:** `/assay choose B`. That is the decision, and nothing else can make it.
+6. **The reveal posts next** — who was who, with every receipt — and a **pull request opens**
+   carrying exactly that attempt.
+7. **You merge it.** The approval is the act your repository already had.
+
+The comparison, the decision and the merge are three things you already do here. All this adds is
+that the attempts were several, isolated, and anonymous until you picked one.
+
+There is also a local side-by-side room (`python -m assay room`) for reading four diffs at once,
+and the whole thing runs from the command line without GitHub if you prefer.
 
 ## Reading the outcomes
 
@@ -80,8 +94,16 @@ Built by Rabee Hanzla.
 
 ### Run it
 
-Python 3.12, standard library only. Put provider keys in `keys.local` beside this file
-(`OPENROUTER_API_KEY=…`, `GEMINI_API_KEY=…`); it is git-ignored.
+Python 3.12, standard library only, plus `gh` for the GitHub loop. Put provider keys in
+`keys.local` beside this file (`OPENROUTER_API_KEY=…`, `GEMINI_API_KEY=…`); it is git-ignored.
+
+```bash
+# the whole loop, in an issue thread: run, post the blind board, wait for `/assay choose X`,
+# reveal the receipts, open the pull request
+python -m assay issue RabHanz/assay 1 --target-path demo/recurrence.py
+```
+
+The issue body carries two machine-read lines: `pack: packs/<name>` and `models: a,b,c`.
 
 ```bash
 # one round: a pack, several contestants, judged from outside, receipts kept

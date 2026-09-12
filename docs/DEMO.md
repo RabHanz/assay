@@ -1,34 +1,55 @@
 # Demo runbook
 
-The whole loop in six commands. Times are real; a round on the recurrence pack takes 5 s to
-5 min per model depending on the model, so a recording compresses time and says so on screen.
+The loop lives in the repository, so the demo does too. Nothing here needs a local UI.
+
+## In GitHub, start to finish
+
+1. **Open an issue** describing the task, with two machine-read lines in the body:
+
+   ```
+   pack: packs/chore-recurrence
+   models: gemini:gemini-3.1-flash-lite,gemini:gemini-3.5-flash-lite,openrouter:nvidia/nemotron-3.5-lightning:free
+   ```
+
+2. **Run the round against it.** Every model gets its own copy of the tree and the same brief;
+   a check none of them can read judges what each produced; the blind board posts itself into
+   the thread.
+
+   ```bash
+   python -m assay issue RabHanz/assay <issue-number> --target-path demo/recurrence.py
+   ```
+
+3. **Read the board in the thread.** Candidates A, B, C with verdicts, stop reasons and the
+   failing cases; each one's diff folded into a `<details>` block that GitHub renders itself.
+   No model names, no costs, no timings.
+
+4. **Choose in a comment:** `/assay choose B`. That is the decision, and it is irreversible.
+
+5. **The reveal posts as the next comment** — who was who, turns, tokens, reasoning tokens,
+   cost and elapsed time — and a **pull request** opens carrying exactly that attempt.
+
+6. **Merge the pull request.** That is the approval; the repository already had the act.
+
+7. `python -m demo.calendar` before and after: four chores reading "(not implemented yet)",
+   then real dates, including the month-end case clamping to 28 February.
+
+## The side-by-side view, when you want it
+
+The thread is where the decision happens; the room is for reading four diffs at once.
 
 ```bash
-cd assay
-git checkout -- demo/recurrence.py            # start from "not implemented"
-python -m demo.calendar                       # 1. before: four chores, all "(not implemented yet)"
-
-python -m assay run packs/chore-recurrence \  # 2. the round: three vendors, one frozen task,
-  --models gemini:gemini-3.5-flash-lite,openrouter:nvidia/nemotron-3.5-lightning:free,openrouter:cohere/north-mini-code:free
-                                              #    identical ceilings, hidden check, receipts
-
-python -m assay room runs/<round-id> --target . --target-path demo/recurrence.py --port 8787
-                                              # 3. open http://127.0.0.1:8787 — panes in random order,
-                                              #    labels only; verdict and stop-reason chips; diffs
-                                              # 4. Choose one blind → reveal: model, tokens, cost, latency
-                                              # 5. Apply this result → a commit in this repo, diff read back
-
-python -m demo.calendar                       # 6. after: the calendar prints real dates
-git log -1                                    # the commit names the round, label, verdict, artefact hash
+python -m assay run packs/chore-recurrence --models a,b,c
+python -m assay room runs/<round-id> --target . --target-path demo/recurrence.py --bind 0.0.0.0
 ```
 
-Recording from another machine: start the room with `--bind 0.0.0.0` and open
-`http://<this-machine>:8787` from the recording machine; nothing to install there.
+## Budgets
 
-What to show if something fails on camera: a provider 503 appears as a `transport_error`
-stop reason on that pane, not as a wrong answer; the round continues; the other panes still
-judge. That is the failure handling, and it is real.
+OpenRouter `:free` models are capped at 50 requests a day on an account below the $10 purchase
+threshold, and one round with two of them uses at most twelve. Gemini's free tier carries
+development. Nothing in the demo path depends on paid credit.
 
-Free-model budget: OpenRouter `:free` models are capped at 50 requests per day on an account
-below the $10 purchase threshold. One demo round with two `:free` contestants uses at most
-12 requests. Develop against Gemini; spend the OpenRouter calls on the recorded round.
+## If something fails on camera
+
+A provider 503 shows as `transport_error` on that candidate, not as a wrong answer, and the
+round continues. A model that exhausts its budget shows as `no_artifact` with the ceiling named.
+Both are real outcomes and both belong in the video.
