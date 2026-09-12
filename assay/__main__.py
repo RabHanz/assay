@@ -79,7 +79,8 @@ def cmd_demo(a: argparse.Namespace) -> int:
     if comp.get("rows") and produced:
         print(f"\n{comp.get('title')}\n{comp.get('subtitle')}\n")
         w = max(len(r["label"]) for r in comp["rows"]) + 2
-        print(" " * (w + 12) + "should be".ljust(16) + "".join(l.ljust(16) for l in produced))
+        if any(not r.get("clean") for r in comp["rows"]):
+            print(" " * (w + 12) + "should be".ljust(16) + "".join(l.ljust(16) for l in produced))
         for r in comp["rows"]:
             if r.get("clean"):
                 continue
