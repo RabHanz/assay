@@ -121,8 +121,10 @@ def defects(comparison: dict) -> dict[str, str]:
                 continue
             # The rightmost wrong cell: in a row that ends with a total it is the total, which
             # is the one a reader recognises ("£99.99 under a £100.00 bill"); in a schedule it is
-            # the latest date, which is where a skipped week shows.
-            i = bad_idx[-1]
+            # the latest date, which is where a skipped week shows. Unless the row died with an
+            # error — then name the cell where it died, not the blank cells after it.
+            errored = [i for i in bad_idx if str(r["cells"][cand][i]).startswith("— ") and len(str(r["cells"][cand][i])) > 2]
+            i = errored[0] if errored else bad_idx[-1]
             got = r["cells"][cand][i]
             want = r["expected"][i]
             col = (comparison.get("columns") or [None] * (i + 1))[i] if i < len(comparison.get("columns") or []) else None

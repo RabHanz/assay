@@ -61,6 +61,100 @@ def cmd_watch(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_demo(a: argparse.Namespace) -> int:
+    """One command, no GitHub, one free key: run a round on the chore pack and print the board here."""
+    from .github import DEFAULT_MODELS
+    from .outcome import compare, defects
+    from .round import Round, table
+    specs = [s.strip() for s in (a.models or DEFAULT_MODELS).split(",") if s.strip()]
+    rnd = Round(a.pack, specs, a.runs, blind=True)
+    print(f"{len(specs)} attempts at {rnd.pack.name} v{rnd.pack.version}, each alone, same brief, ceilings "
+          f"{rnd.pack.max_turns} turns · {rnd.pack.max_tokens} tokens · {rnd.pack.wall_seconds}s …", flush=True)
+    st = rnd.run()
+    comp = compare({l: (st["contestants"][l].get("outcome") or {}) for l in st["order"]})
+    produced = [l for l in st["order"] if (st["contestants"][l].get("outcome") or {}).get("rows")]
+    passed = [l for l in st["order"] if st["contestants"][l].get("verdict") == "pass"]
+    print()
+    print(f"{len(passed)} of {len(specs)} got every check right" + (f": {', '.join(passed)}" if passed else "") + ".")
+    if comp.get("rows") and produced:
+        print(f"\n{comp.get('title')}\n{comp.get('subtitle')}\n")
+        w = max(len(r["label"]) for r in comp["rows"]) + 2
+        print(" " * (w + 12) + "should be".ljust(16) + "".join(l.ljust(16) for l in produced))
+        for r in comp["rows"]:
+            if r.get("clean"):
+                continue
+            for i in range(r["width"]):
+                wrong_here = any((r.get("wrong") or {}).get(l, [False] * r["width"])[i] for l in produced)
+                if not wrong_here:
+                    continue
+                col = (comp.get("columns") or [""] * r["width"])[i] if i < len(comp.get("columns") or []) else ""
+                exp = (r.get("expected") or [""] * r["width"])[i] if i < len(r.get("expected") or []) else ""
+                cells = ""
+                for l in produced:
+                    got = (r["cells"].get(l) or [])
+                    v = got[i] if i < len(got) else "—"
+                    bad = (r.get("wrong") or {}).get(l, [False] * r["width"])[i]
+                    cells += (f"{v} ✗" if bad else f"{v} ✓").ljust(16)
+                print(f"{r['label'].ljust(w)}{col.ljust(12)}{str(exp).ljust(16)}{cells}")
+        clean = sum(1 for r in comp["rows"] if r.get("clean"))
+        if clean == len(comp["rows"]):
+            print("every attempt produced exactly the right result in every row")
+        elif clean:
+            print(f"\n(the other {clean} rows are right in every attempt)")
+        for cand, s in defects(comp).items():
+            if s:
+                print(f"{cand}: {s}")
+    print()
+    for l in rnd.identity:
+        rnd._update(l, reveal=rnd.reveal_for(l))
+    print("revealed, since this is your terminal and not a thread:")
+    print(table(rnd.state, rnd.identity))
+    return 0
+
+
+def cmd_init(a: argparse.Namespace) -> int:
+    """Scaffold a pack that already passes, so the real job is editing two files."""
+    from pathlib import Path
+    root = Path("packs") / a.name
+    if root.exists():
+        print(f"{root} already exists"); return 1
+    (root / "fixture").mkdir(parents=True)
+    (root / "pack.toml").write_text(f'name = "{a.name}"\nversion = "1"\n\n[task]\nentrypoint = "solution.py"\n'
+                                    f'summary = "Describe the job in one line."\n\n[budget]\nmax_turns = 6\nmax_tokens = 8000\nwall_seconds = 300\n')
+    (root / "brief.md").write_text("The file `solution.py` in your workspace contains `greet`, which is not implemented.\n\n"
+                                   "Implement it: `greet(name)` returns `\"Hello, <name>!\"`, and `greet(\"\")` returns `\"Hello!\"`.\n\n"
+                                   "Read the file first, then write the complete corrected file with `write_file`, then call `done`.\n")
+    (root / "fixture" / "solution.py").write_text('def greet(name: str) -> str:\n    """Return a greeting. Empty name: just "Hello!"."""\n    raise NotImplementedError\n')
+    (root / "check.py").write_text('"""Hidden check. Runs OUTSIDE the workspace; the workspace is on PYTHONPATH."""\nimport json\ntry:\n    from solution import greet\nexcept Exception as e:\n'
+                                   '    print(json.dumps({"passed": False, "failures": [["import", f"EXC {type(e).__name__}"]], "total": 3, "passed_count": 0})); raise SystemExit(0)\n'
+                                   'cases = [("Ada", "Hello, Ada!"), ("", "Hello!"), ("Grace Hopper", "Hello, Grace Hopper!")]\nbad = []\nfor arg, want in cases:\n'
+                                   '    try:\n        got = greet(arg)\n    except Exception as e:\n        bad.append([repr(arg), f"EXC {type(e).__name__}"]); continue\n'
+                                   '    if got != want: bad.append([repr(arg), f"{got!r} want {want!r}"])\n'
+                                   'print(json.dumps({"passed": not bad, "failures": bad, "total": len(cases), "passed_count": len(cases) - len(bad)}))\n')
+    (root / "outcome.py").write_text('"""What this attempt PRODUCES, for a reader who does not read code. Same isolation as check.py."""\nimport json\n'
+                                     'try:\n    from solution import greet\nexcept Exception as e:\n    print(json.dumps({"error": f"{type(e).__name__}"})); raise SystemExit(0)\n'
+                                     'PEOPLE = [("Ada", "Hello, Ada!"), ("nobody", "Hello!"), ("Grace Hopper", "Hello, Grace Hopper!")]\nrows = []\n'
+                                     'for label, want in PEOPLE:\n    arg = "" if label == "nobody" else label\n'
+                                     '    try:\n        got = greet(arg)\n    except Exception as e:\n        got = f"— {type(e).__name__}"\n'
+                                     '    rows.append({"label": label, "note": "", "cells": [got], "expected": [want], "why": "an empty name gets a plain hello"})\n'
+                                     'print(json.dumps({"title": "What each attempt says to three people", "subtitle": "", "columns": ["greeting"], "rows": rows}))\n')
+    print(f"wrote {root}/ — pack.toml, brief.md, fixture/solution.py, check.py, outcome.py.\n"
+          f"Edit brief.md and fixture/ for your task, then check.py (the truth) and outcome.py (the view).\n"
+          f"Run it: python -m assay demo --pack {root}")
+    return 0
+
+
+def cmd_scoreboard(a: argparse.Namespace) -> int:
+    from .scoreboard import append_round, write_table
+    from pathlib import Path
+    if a.round_dir:
+        n = append_round(Path(a.round_dir), url=a.url)
+        print(f"{n} rows appended")
+    p = write_table()
+    print(f"rendered {p}")
+    return 0
+
+
 def cmd_models(a: argparse.Namespace) -> int:
     import urllib.request
     from .providers import PROVIDERS, _load_keys
@@ -127,6 +221,18 @@ def main(argv: list[str] | None = None) -> int:
     w.add_argument("--target-path", default=None)
     w.add_argument("--once", action="store_true", help="one sweep, then exit")
     w.set_defaults(fn=cmd_watch)
+    d = sub.add_parser("demo", help="one command, no GitHub: run a round on a pack and print the board here")
+    d.add_argument("--pack", default="packs/chore-recurrence")
+    d.add_argument("--models", default="", help="defaults to three free Gemini attempts")
+    d.add_argument("--runs", default="runs")
+    d.set_defaults(fn=cmd_demo)
+    ini = sub.add_parser("init", help="scaffold a pack that already passes under packs/<name>")
+    ini.add_argument("name")
+    ini.set_defaults(fn=cmd_init)
+    sb = sub.add_parser("scoreboard", help="append a round to scoreboard/rounds.jsonl and re-render SCOREBOARD.md")
+    sb.add_argument("round_dir", nargs="?", default=None)
+    sb.add_argument("--url", default=None)
+    sb.set_defaults(fn=cmd_scoreboard)
     m = sub.add_parser("models", help="list model ids a provider offers")
     m.add_argument("provider", choices=["openrouter", "gemini"])
     m.add_argument("--grep", default="")

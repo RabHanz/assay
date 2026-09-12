@@ -142,7 +142,17 @@ def action_choose(repo: str, number: int, comment_body: str, author: str, associ
            stdin=f"Chose **{label}**, but opening the pull request failed: `{str(e)[:300]}`")
     gh("issue", "comment", str(number), "--repo", repo, "--body-file", "-",
        stdin=reveal_comment(rd, identities, label, pr or None))
-    print(f"{author} chose {label}; pr {pr or '(none: not a passing attempt)'}", flush=True)
+    print(f"{author} chose {label}; pr {pr or '(none opened)'}", flush=True)
+    # The repository becomes the record: one row per attempt, rendered into SCOREBOARD.md.
+    # The workflow commits these two files after this step.
+    try:
+        from .scoreboard import append_round, write_table
+        issue_url = f"https://github.com/{repo}/issues/{number}"
+        n = append_round(rd, url=issue_url)
+        write_table()
+        print(f"scoreboard: {n} rows appended", flush=True)
+    except Exception as e:  # the record must never break the reveal
+        print(f"scoreboard append failed: {type(e).__name__}: {str(e)[:200]}", flush=True)
     _out(acted="true", label=label, pr=pr)
     return 0
 

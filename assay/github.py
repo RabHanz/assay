@@ -38,6 +38,21 @@ PACK = re.compile(r"^\s*pack:\s*([A-Za-z0-9._/-]+)\s*$", re.M | re.I)
 MODELS = re.compile(r"^\s*models:\s*(.+?)\s*$", re.M | re.I)
 MARKER = "<!-- assay:board -->"
 REVEAL_MARKER = "<!-- assay:reveal -->"
+# Free-tier defaults so "label an issue" is literally sufficient in a repository with one pack
+# and one key. The issue body's `models:` line overrides them.
+DEFAULT_MODELS = "gemini:gemini-3.1-flash-lite,gemini:gemini-3.5-flash-lite,gemini:gemini-3.5-flash-lite"
+
+
+def default_pack() -> str | None:
+    """The repository's pack, when there is exactly one — or the one named in assay.toml."""
+    cfg = Path("assay.toml")
+    if cfg.exists():
+        import tomllib
+        d = tomllib.loads(cfg.read_text())
+        if d.get("default_pack"):
+            return d["default_pack"]
+    packs = sorted(p for p in Path("packs").glob("*") if (p / "pack.toml").exists())
+    return str(packs[0]) if len(packs) == 1 else None
 
 
 class GhError(RuntimeError):
@@ -81,7 +96,7 @@ def board_comment(state: dict, round_id: str) -> str:
         MARKER,
         f"### {n} attempts at `{pack['name']}` v{pack['version']}, judged",
         "",
-        headline,
+        headline + (" (No pack was named, so this repository's pack was used.)" if pack.get("chosen_by_default") else ""),
         "",
         f"Each attempt ran alone in its own copy of the tree, with the same brief and the same "
         f"ceilings: **{policy['max_turns']} turns · {policy['max_completion_tokens']} completion tokens · "
@@ -188,6 +203,15 @@ def board_comment(state: dict, round_id: str) -> str:
             lines.append(f"\n{', '.join(why)} produced nothing that can be run, so there is no column "
                          f"for it. That is a budget or transport result, not a wrong answer — the "
                          f"table above says which.")
+    elif not (Path(pack.get("root", "")) / "outcome.py").exists() if pack.get("root") else True:
+        lines += ["", "This pack has no outcome view, so the verdict table above is all there is to judge on. "
+                      "A pack can add an `outcome.py` that shows what each attempt's work produces."]
+    # How to choose, with this round's real labels, here where a reader has just finished the
+    # board — not only in a footer under the folded code. The first public board never said it.
+    labels = list(state["order"])
+    lines += ["", f"**To choose, reply with one line:** " +
+              " · ".join(f"`/assay choose {l}`" for l in labels) +
+              ". That reveals every identity and receipt and opens a pull request carrying that attempt only."]
     lines += ["", "Identities, costs and timings stay hidden until someone chooses. The code itself, "
                   "for whoever wants it:"]
     for label in state["order"]:
@@ -269,13 +293,19 @@ def run_for_issue(repo: str, number: int, runs_dir: str | Path = "runs",
     issue = read_issue(repo, number)
     body = issue.get("body") or ""
     pack_m, models_m = PACK.search(body), MODELS.search(body)
-    if not pack_m:
-        raise GhError(f"issue #{number} does not name a pack. Add a line: `pack: packs/<name>`")
-    specs = [s.strip() for s in (models_m.group(1) if models_m else default_models).split(",") if s.strip()]
+    pack_path, chosen_by_default = (pack_m.group(1), False) if pack_m else (default_pack(), True)
+    if not pack_path:
+        raise GhError(f"issue #{number} names no pack and the repository has more than one under packs/. "
+                      f"Add a line: `pack: packs/<name>`")
+    specs = [s.strip() for s in (models_m.group(1) if models_m else default_models or DEFAULT_MODELS).split(",") if s.strip()]
     if not specs:
         raise GhError("no models: put `models: a,b,c` in the issue body or pass --models")
-    print(f"issue #{number}: pack {pack_m.group(1)}, {len(specs)} attempts", flush=True)
-    rnd = Round(pack_m.group(1), specs, runs_dir, blind=True)
+    print(f"issue #{number}: pack {pack_path}{' (the repository default)' if chosen_by_default else ''}, "
+          f"{len(specs)} attempts", flush=True)
+    rnd = Round(pack_path, specs, runs_dir, blind=True)
+    rnd.state["pack"]["chosen_by_default"] = chosen_by_default
+    rnd.state["pack"]["root"] = str(rnd.pack.root)
+    rnd._write()
     rnd.run()
     if post:
         comment = board_comment(rnd.state, rnd.round_id)
@@ -315,7 +345,10 @@ def open_pr(repo: str, number: int, round_dir: Path, label: str, target_path: st
            f"stopped {c.get('stopped_because')}\nchosen blind on #{number}; identity revealed only after the choice.")
     subprocess.run(["git", "-c", "user.name=assay", "-c", "user.email=assay@localhost",
                     "commit", "-q", "-m", msg], cwd=here, check=True)
-    subprocess.run(["git", "push", "-q", "-u", "origin", branch], cwd=here, check=True)
+    # Plain git has no credentials of its own on a CI runner even when gh does — the first
+    # Action run failed here with "could not read Username". Let git borrow gh's.
+    subprocess.run(["git", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential",
+                    "push", "-q", "-u", "origin", branch], cwd=here, check=True)
     # The outcome goes in the pull request too, so the person merging can see what the code
     # DOES without reading it. A reviewer who cannot read Python can still tell whether a
     # monthly chore lands on 28 February.
