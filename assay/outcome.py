@@ -10,6 +10,14 @@ workspace, workspace importable, never copied in. It prints one JSON object:
     {"title": str, "subtitle": str, "columns": [str], "rows": [{"label", "note", "cells": [str]}]}
 
 or `{"error": "..."}` when the artefact cannot produce one at all.
+
+Text by default, always. A pack whose product is inherently visual — a chart, a rendered page —
+may instead print `{"image": "<path>", "alt": "..."}`, because there the image IS the outcome
+rather than a picture of a table. Nothing else should reach for it: a table is selectable,
+quotable, searchable and readable aloud, and a picture of one is none of those.
+
+And the limit, stated rather than dressed up: if a pack's only observable result is its own
+verdict, it has no outcome. The board says so instead of showing the verdict twice.
 """
 from __future__ import annotations
 

@@ -226,11 +226,26 @@ def open_pr(repo: str, number: int, round_dir: Path, label: str, target_path: st
     subprocess.run(["git", "-c", "user.name=assay", "-c", "user.email=assay@localhost",
                     "commit", "-q", "-m", msg], cwd=here, check=True)
     subprocess.run(["git", "push", "-q", "-u", "origin", branch], cwd=here, check=True)
+    # The outcome goes in the pull request too, so the person merging can see what the code
+    # DOES without reading it. A reviewer who cannot read Python can still tell whether a
+    # monthly chore lands on 28 February.
+    outcome_md = ""
+    out = (c.get("outcome") or {})
+    if out.get("rows"):
+        outcome_md = ["", f"**{out.get('title') or 'What this produces'}**",
+                      f"*{out.get('subtitle') or ''}*", "",
+                      "| | " + " | ".join(out.get("columns") or []) + " |",
+                      "|" + "---|" * (len(out.get("columns") or []) + 1)]
+        for r in out["rows"]:
+            outcome_md.append(f"| **{r['label']}** <sub>{r.get('note') or ''}</sub> | "
+                              + " | ".join(r.get("cells") or []) + " |")
+        outcome_md = "\n".join(outcome_md)
     pr_body = (f"Chosen blind on #{number} as candidate **{label}** of {len(state['contestants'])}.\n\n"
                f"It passed the hidden check for pack `{pack['name']}` v{pack['version']} "
                f"({c.get('failures_count') or 0} failing cases), under ceilings of "
                f"{state['policy']['max_turns']} turns · {state['policy']['max_completion_tokens']} completion "
-               f"tokens · {state['policy']['wall_seconds']}s.\n\n"
+               f"tokens · {state['policy']['wall_seconds']}s.\n"
+               f"{outcome_md}\n\n"
                f"Merging this is the approval. The other attempts were discarded.\n\n"
                f"Closes #{number}")
     url = gh("pr", "create", "--repo", repo, "--base", base, "--head", branch,

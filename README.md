@@ -13,9 +13,11 @@ You do not go anywhere to use this. The whole loop is an issue thread and a pull
    same brief and the same ceilings.
 3. **A check judges what they produced.** It was written before any of them saw the task and it
    never enters their workspace, so no model can read the cases grading it or overwrite its grader.
-4. **The board arrives as a comment** on your issue: candidates A, B, C, their verdicts, why each
-   one stopped, and their diffs folded inline for GitHub to render. No model names, no costs, no
-   timings.
+4. **The board arrives as a comment** on your issue, and it shows what each attempt PRODUCES —
+   the household schedule its code computes, side by side, with every cell they disagree on
+   marked. Not the source. A diff is the instructions for the work; the outcome is the work, and
+   it is the only form in which somebody who does not read code can see which attempt is wrong.
+   The diffs are there too, folded, for whoever wants them. No model names, no costs, no timings.
 5. **You choose in a reply:** `/assay choose B`. That is the decision, and nothing else can make it.
 6. **The reveal posts next** — who was who, with every receipt — and a **pull request opens**
    carrying exactly that attempt.
