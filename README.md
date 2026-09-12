@@ -1,13 +1,45 @@
-# assay
+# Assay
 
-Point a task pack at several models. Each model does the task in its own isolated workspace,
-with real tools. A check that was written before any model saw the task, and that no model can
-read, judges what each one produced. You compare the produced code blind, choose one, see who it
-was and what it cost, and one approval applies exactly that result into your repository.
+You have a real task in your own codebase, and several models that claim they can do it. You want to know which one actually can, before you trust it with your work.
 
-An evaluation framework ends at a score. This ends at an applied patch.
+Every leaderboard answers a different question. They rank models on somebody else's problems. Assay ranks them on yours, and it finishes with the work done rather than with a score.
 
-## Run it
+## How it works
+
+1. You write a pack: a brief, a starting tree, and an acceptance check.
+2. The check is written before any model sees the task, and it never enters the workspace. A model cannot read the cases grading it or overwrite its own grader.
+3. Each model works in its own isolated copy of the tree, through a real tool loop.
+4. The check judges what each model actually produced.
+5. You compare the results without being told which model made which. Identity, cost and latency stay hidden until your choice is committed.
+6. One approval applies exactly one result to your repository. The rest are discarded.
+
+## Reading the outcomes
+
+Four outcomes, deliberately kept apart, because collapsing them is how a scoreboard starts lying:
+
+- **pass / fail** — passed these checks. Not a proof of correctness.
+- **no_artifact** — the model never wrote the file. Running out of budget is not a wrong answer, and this project shipped a bug that showed it as one until the first real run caught it.
+- **transport_error** — the provider failed. Not the model's fault, and retried before it is recorded.
+
+Every receipt carries completion tokens, reasoning tokens, cost and elapsed time as reported by the provider itself, never estimated from a price table. Turns, tokens and wall-clock are three separate ceilings enforced by the host, and the board always says which policy it ran under, because a token ceiling is a judging policy rather than a neutral setting.
+
+## What we found while building it
+
+On one recurrence task with seven hidden cases, free models alone: one passed, one spent 7,464 of its 8,000 tokens reasoning and never wrote a file, one provider returned 503 through three retries, and an earlier contender missed a single edge case. On an easier task every model passed, which is why an easy task is a cost benchmark and never a quality one.
+
+Earlier measurement on paid models turned up the finding worth keeping: two models from unrelated vendors failed the identical case, returning 31 March where a monthly rule on the 31st must clamp to 28 February. No public leaderboard would surface that, because it lives in the intersection of one specific requirement and several models at once. That is what a personal pack is for.
+
+## What this is not
+
+Not a universal ranking. Sample sizes are shown as they are. Harbor and promptfoo already run sandboxed agent evaluations with hidden checks and portable task sets, and we checked that at source rather than claiming novelty we do not have. What Assay adds is the last step: the bench output ships, behind one human approval, into the real repository.
+
+Built by Rabee Hanzla.
+
+---
+
+## Reference
+
+### Run it
 
 Python 3.12, standard library only. Put provider keys in `keys.local` beside this file
 (`OPENROUTER_API_KEY=…`, `GEMINI_API_KEY=…`); it is git-ignored.
@@ -15,7 +47,7 @@ Python 3.12, standard library only. Put provider keys in `keys.local` beside thi
 ```bash
 # one round: a pack, several contestants, judged from outside, receipts kept
 python -m assay run packs/chore-recurrence \
-  --models gemini:gemini-3.1-flash-lite,openrouter:nvidia/nemotron-3.5-lightning:free,openrouter:qwen/qwen3.7-flash
+  --models gemini:gemini-3.5-flash-lite,openrouter:nvidia/nemotron-3.5-lightning:free,openrouter:cohere/north-mini-code:free
 
 # the room: compare the diffs blind, choose, reveal, apply one result into a repo
 python -m assay room runs/<round-id> --target . --target-path demo/recurrence.py
@@ -25,9 +57,10 @@ python -m assay room runs/<round-id> --target . --target-path demo/recurrence.py
 python -m demo.calendar
 ```
 
-`python -m assay models gemini --grep flash` lists what a provider offers.
+`python -m assay models gemini --grep flash` lists what a provider offers. `docs/DEMO.md` is the
+six-command runbook. `python -m unittest discover -s tests` runs the isolation tests.
 
-## What a pack is
+### What a pack is
 
 ```
 packs/<name>/
@@ -41,58 +74,42 @@ Two packs are included: `merge-windows` (easy; every model passes, only cost and
 and `chore-recurrence` (daily/weekly/monthly rules, N-step skips, holiday roll-forward, month-end
 clamping; seven hidden cases; models diverge).
 
-## What a receipt is
+### What a round leaves behind
 
-Every contestant leaves `receipt.json` with: turns, prompt tokens, completion tokens, reasoning
-tokens, cost, cost source, wall-clock seconds, why it stopped, whether it emitted an artefact,
-and each tool call. Cost is the provider's own figure (`usage.cost` from OpenRouter) or is marked
-"not reported by provider"; there is no price table in this code. The verdict is separate:
-`verdict.json` holds pass / fail with the failing cases / no_artifact / check_error.
+```
+runs/<round-id>/
+  state.json          what the room shows; identities absent until the choice is committed
+  identities.json     label → model, read by the server only at reveal
+  fixture-snapshot/   the fixture as it was, so apply can refuse stale evidence
+  <label>/workspace/  the model's isolated tree
+  <label>/receipt.json   turns, tokens, cost, cost source, latency, stop reason, tool calls
+  <label>/verdict.json   pass / fail (with cases) / no_artifact / check_error
+```
 
-## The guarantees, and where each one lives
+### The guarantees, and where each one lives
 
 1. **The check never enters the workspace.** `pack.stage` copies only `fixture/`; `judge` runs
    `check.py` from outside with the workspace merely importable. Tested.
 2. **Receipts come from the provider's usage field.** `providers.chat` sends
    `usage: {include: true}` to OpenRouter and records what comes back; Gemini's endpoint reports
    tokens and no cost, and the receipt says so.
-3. **Three ceilings, enforced by the host, reported separately:** turns, cumulative completion
-   tokens, wall-clock. `run.run_one` stops at whichever hits first and names it in
-   `stopped_because`. "Ran out of budget" and "got it wrong" are different columns.
-4. **An empty visible answer is its own status.** A reasoning model can spend its whole budget
-   thinking and return nothing, billed in full. That is `empty_output`, not a failure.
-5. **The budget policy is on screen.** The room shows the ceilings, identical for every pane.
-   Rows run under different ceilings are not comparable and are never shown as one board.
-6. **Blind means blind.** Labels are assigned at random and pane order is shuffled again;
-   identity, cost and latency are held in `identities.json` and the receipts, and reach the page
-   only after the choice is committed. Model and vendor names are stripped from the diffs shown.
-   Normalisation reduces identifying cues; diff style and length can still leak, and the page says so.
-7. **"Pass" means passed this pack's checks.** The pack name and version are on screen; the
-   fixture is snapshotted per round, and `apply` refuses if the target file changed since.
-8. **Apply exactly one result.** Only the chosen, passing artefact can be applied, once; the
-   commit message carries the round, the label, the verdict and the artefact hash.
+3. **Three ceilings, enforced by the host, reported separately.** `run.run_one` stops at
+   whichever hits first and names it in `stopped_because`.
+4. **An empty visible answer is its own status** (`empty_output`), billed and shown as such.
+5. **The budget policy is on screen**, identical for every pane in a round.
+6. **Blind means blind.** Labels assigned at random, pane order shuffled again; identity, cost
+   and latency reach the page only after the choice is committed; model and vendor names are
+   stripped from the diffs shown. Normalisation reduces identifying cues; diff style and length
+   can still leak, and the page says so.
+7. **"Pass" means passed this pack's checks.** Pack name and version on screen; `apply` refuses
+   if the target file changed since the round's fixture was frozen.
+8. **Apply exactly one result.** Only the chosen, passing artefact, once; the commit message
+   carries the round, the label, the verdict and the artefact hash.
 
 Every path a tool touches is confined to the workspace. `run_python` exists behind an
 off-by-default flag (`--allow-exec`) because it executes model-authored code on your machine.
 
-## Limits, stated
-
-- One round is one task. Six models on one problem is a wider sample of models, not of work.
-  Early boards are provisional and say so.
-- A token ceiling is a judging policy, not a neutral setting: the same model, same task and same
-  verdict has cost nine times the wall-clock at a higher ceiling because it filled it.
-- A "pass" is a pass on the pack's cases. Hidden cases test disclosed requirements; they do not
-  prove correctness beyond them.
-- Whether anyone will pay for this is untested.
-
-## Neighbours
-
-Portable task datasets, sandboxed agent runs and cost or latency assertions exist in
-[Harbor](https://www.harborframework.com/) and [promptfoo](https://www.promptfoo.dev/), among
-others. What assay adds is the last step: compare the produced artefacts blind, choose one, and
-apply it into the working repository behind a single human approval.
-
-## Prior work
+### Prior work
 
 `assay/pack.py` and `assay/judge.py` were drafted before the hackathon window and never run; a
 throwaway harness (not in this repo) measured six models on the recurrence task before the
