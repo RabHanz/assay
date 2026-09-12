@@ -44,8 +44,16 @@ def _strip_identity(text: str, specs: list[str]) -> str:
 
 class Round:
     def __init__(self, pack_path: str | Path, model_specs: list[str], runs_dir: str | Path = "runs",
-                 *, blind: bool = True, allow_exec: bool = False, seed: int | None = None):
+                 *, blind: bool = True, allow_exec: bool = False, seed: int | None = None,
+                 budget: dict | None = None):
         self.pack = packmod.load(pack_path)
+        # A ceiling override is a different judging policy, so it is recorded as one: the label
+        # below says the pack's own budget was replaced, and two rounds under different labels
+        # are never one board.
+        self.budget_override = {k: v for k, v in (budget or {}).items() if v}
+        if self.budget_override:
+            import dataclasses
+            self.pack = dataclasses.replace(self.pack, **self.budget_override)
         self.specs = list(model_specs)
         if not 1 <= len(self.specs) <= 26:
             raise ValueError("between 1 and 26 contestants")
@@ -71,7 +79,9 @@ class Round:
                      "brief_excerpt": self.pack.brief[:300]},
             "policy": {"max_turns": self.pack.max_turns, "max_completion_tokens": self.pack.max_tokens,
                        "wall_seconds": self.pack.wall_seconds, "allow_exec": allow_exec,
-                       "label": "identical ceilings for every pane"},
+                       "label": "identical ceilings for every pane"
+                                + (f" — pack budget overridden ({', '.join(f'{k}={v}' for k, v in self.budget_override.items())})"
+                                   if self.budget_override else "")},
             "phase": "running",
             "blind": blind,
             "revealed": not blind,

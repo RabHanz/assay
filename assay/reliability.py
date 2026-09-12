@@ -20,10 +20,10 @@ from .round import Round
 
 
 def repeat(pack_path: str | Path, model_specs: list[str], n: int, runs_dir: str | Path = "runs",
-           allow_exec: bool = False) -> dict:
+           allow_exec: bool = False, budget: dict | None = None) -> dict:
     rounds = []
     for i in range(n):
-        r = Round(pack_path, model_specs, runs_dir, blind=False, allow_exec=allow_exec)
+        r = Round(pack_path, model_specs, runs_dir, blind=False, allow_exec=allow_exec, budget=budget)
         r.run()
         for label in r.identity:
             r._update(label, reveal=r.reveal_for(label))

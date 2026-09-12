@@ -47,6 +47,21 @@ The failing cases are worth as much as the rate: one of these two kept missing a
 rule, the other missed the month-end clamp — the same case two unrelated paid vendors failed in
 an earlier measurement.
 
+## The token ceiling is a judging policy, not a neutral setting
+
+The same pack, the same model, the same check; only the completion-token ceiling changed:
+
+```
+ passed     tokens min–max  model                     ceiling
+   0/3            7076–8000  qwen3.7-flash              8,000
+   0/3           14020–16000 qwen3.7-flash             16,000
+```
+
+Doubling the budget bought twice the spending and the same verdict. These models expand to fill
+whatever ceiling they are given, so the ceiling is part of the judgement and has to be declared
+with the result. `--max-tokens` overrides a pack's budget and writes the override into the board's
+policy line, because two rounds under different ceilings are not one board.
+
 ## What we found while building it
 
 On one recurrence task with seven hidden cases, free models alone: one passed, one spent 7,464 of its 8,000 tokens reasoning and never wrote a file, one provider returned 503 through three retries, and an earlier contender missed a single edge case. On an easier task every model passed, which is why an easy task is a cost benchmark and never a quality one.
