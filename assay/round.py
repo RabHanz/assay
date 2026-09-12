@@ -123,6 +123,14 @@ class Round:
         receipt = run_one(spec, self.pack, workspace, allow_exec=self.allow_exec, on_event=on_event)
         self._update(label, status="judging", stopped_because=receipt.stopped_because, empty_output=receipt.empty_output)
         verdict = judge(self.pack.check, workspace, self.pack.entrypoint)
+        if not receipt.emitted_artifact:
+            # The entrypoint is byte-for-byte the fixture: the model produced nothing to judge.
+            # Grading the untouched fixture would print "fail 0/7" and collapse "ran out of
+            # budget" into "got it wrong" — the exact collapse this tool exists to prevent.
+            verdict.detail = (f"{self.pack.entrypoint} unchanged from the fixture; stopped because {receipt.stopped_because}"
+                              + (f"; check on the untouched fixture: {verdict.status} {verdict.passed_count}/{verdict.total}" if verdict.total else ""))
+            verdict.status = "no_artifact"
+            verdict.failures = []
         (cdir / "verdict.json").write_text(json.dumps(verdict.__dict__, indent=2))
 
         before = (self.pack.fixture / self.pack.entrypoint)

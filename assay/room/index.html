@@ -38,7 +38,7 @@ p{margin:0}
 .conn{padding:8px 14px;border-top:1px solid var(--line2);color:var(--bad);font-size:12px}
 
 /* ── panes ──────────────────────────────────────────────────────────── */
-.panes{display:grid;gap:14px;grid-template-columns:1fr;align-items:start}
+.panes{display:grid;gap:14px;grid-template-columns:1fr;align-items:stretch}
 @media(min-width:900px){.panes{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}}
 .pane{background:var(--panel);border:1px solid var(--line);min-width:0;display:flex;flex-direction:column}
 .pane.picked{border-color:var(--ink)}
@@ -70,8 +70,10 @@ p{margin:0}
 .fails .got{color:var(--bad)}
 .tool{font-family:var(--mono);font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-.dhead{display:flex;justify-content:space-between;gap:8px;font-size:11px;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--muted);padding:8px 12px;border-bottom:1px solid var(--line2)}
+.dhead{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);
+  padding:8px 12px;border-bottom:1px solid var(--line2)}
+.dhead b{font-weight:500;letter-spacing:.08em;text-transform:uppercase}
+.dhead .file{font-family:var(--mono)}
 .diff{overflow:auto;max-height:320px;background:#fcfcfb;border-bottom:1px solid var(--line2)}
 .diff .ln{display:block;font-family:var(--mono);font-size:11.5px;line-height:1.55;white-space:pre;
   padding:0 12px;min-width:100%;width:max-content}
@@ -95,11 +97,13 @@ button:hover:enabled{background:var(--ink);color:#fff}
 button:disabled{cursor:not-allowed;color:var(--muted);border-color:var(--line);background:#fbfbfa}
 button.go{background:var(--ink);color:#fff}
 button.go:hover:enabled{background:#000}
+button.go:disabled{background:#fbfbfa;color:var(--muted);border-color:var(--line)}
 .hint{font-size:11.5px;color:var(--muted)}
 .hint.err{color:var(--bad)}
 .applied .row{display:flex;gap:10px;padding:4px 0;font-size:12px;border-bottom:1px solid var(--line2)}
 .applied .row span:first-child{flex:0 0 118px;color:var(--muted)}
 .foot{margin-top:14px;font-size:11.5px;color:var(--muted)}
+.pnote{margin:0 0 12px;font-size:12.5px;color:var(--ink2);border-left:2px solid var(--ink);padding-left:9px}
 </style>
 </head>
 <body>
@@ -122,6 +126,7 @@ button.go:hover:enabled{background:#000}
   </div>
   <p class="conn" id="conn" hidden></p>
 </header>
+<p class="pnote" id="phase-note" hidden></p>
 <main class="panes" id="panes"></main>
 <p class="foot" id="foot"></p>
 
@@ -134,7 +139,7 @@ const errors = Object.create(null);   // label -> last action error
 let lastRaw = "", pending = null;     // label whose POST is in flight
 
 const STOPPED = {
-  done: "finished — called done",
+  done: "called done",
   max_turns: "turn ceiling",
   max_completion_tokens: "token ceiling",
   wall_seconds: "time ceiling",
@@ -198,7 +203,7 @@ function render(s) {
   $("brief").textContent = pack.brief_excerpt || "The pack's brief was not recorded in this state.";
 
   const flags = [chipHTML("", phase.toUpperCase())];
-  if (s.blind !== false) flags.push(chipHTML(revealed ? "" : "warn", revealed ? "BLIND — REVEALED" : "BLIND"));
+  if (s.blind !== false) flags.push(chipHTML("", revealed ? "BLIND — REVEALED" : "BLIND"));
   else flags.push(chipHTML("warn", "NOT BLIND"));
   if (s.choice) flags.push(chipHTML("pick", "CHOSE " + s.choice.label));
   if (s.apply && s.apply.commit) flags.push(chipHTML("ok", "APPLIED " + s.apply.commit));
@@ -209,6 +214,16 @@ function render(s) {
   if (pol.allow_exec !== undefined) line += " Code execution " + (pol.allow_exec ? "allowed" : "off") + " in this round.";
   $("policy-line").textContent = line;
   $("pass-line").textContent = "PASS means passed THIS pack's checks (pack " + (pack.name || "—") + " v" + (pack.version || "—") + ").";
+
+  let pn = "";
+  if (phase === "judged" && !s.choice)
+    pn = "Every pane is judged. Choosing one reveals the identity, cost and latency of all of them, and cannot be undone.";
+  else if (phase === "chosen" && s.choice)
+    pn = "You chose " + s.choice.label + " blind. Applying writes that pane's artefact into the working tree and commits it; the other workspaces are left alone.";
+  else if (phase === "applied" && s.apply)
+    pn = "Pane " + (s.apply.label || "—") + " was applied as commit " + (s.apply.commit || "—") + ". The diff below is read back from the working tree, not from the run.";
+  $("phase-note").textContent = pn;
+  $("phase-note").hidden = !pn;
 
   const cs = s.contestants || {};
   const order = (Array.isArray(s.order) ? s.order : []).filter((l) => cs[l]);
@@ -261,9 +276,10 @@ function pane(label, c, s, phase, revealed, chosen, pack) {
   if (CEILING[c.stopped_because]) note = "It stopped at a ceiling. That is a budget result, not a wrong answer — read it separately from the verdict.";
   else if (c.stopped_because === "transport_error") note = "The request failed in transport. This is our side or the provider's, not the model's answer.";
   else if (c.stopped_because === "no_tool_call") note = "It answered in prose instead of using the tools, and was stopped after one nudge.";
-  if (c.check_detail && (c.verdict === "check_error" || c.verdict === "no_artifact")) {
-    note += (note ? " " : "") + esc(c.check_detail);
-  }
+  else if (c.stopped_because === "empty_output") note = "It spent its budget and returned no visible answer. The tokens were billed all the same.";
+  if (note) note = '<p class="note">' + note + "</p>";
+  if (c.check_detail && (c.verdict === "check_error" || c.verdict === "no_artifact"))
+    note += '<p class="note mono">check says: ' + esc(c.check_detail) + "</p>";
 
   /* failing cases */
   let fails = "";
@@ -287,16 +303,18 @@ function pane(label, c, s, phase, revealed, chosen, pack) {
   let dbody;
   if (c.artifact_diff) dbody = diffHTML(c.artifact_diff, label, "art");
   else if (status !== "done") dbody = '<p class="dempty">The diff appears when this pane finishes and is judged.</p>';
-  else if (c.verdict === "no_artifact" || !c.artifact_bytes) dbody = '<p class="dempty">No artefact: ' + esc(entry) + " was never written.</p>";
+  else if (c.verdict === "no_artifact" || !c.artifact_bytes) dbody = '<p class="dempty">Nothing to compare — no file was written.</p>';
   else dbody = '<p class="dempty">The file was written but is byte-identical to the fixture.</p>';
-  const diff = '<div class="dhead"><span>diff · fixture → workspace · ' + esc(entry) + "</span><span>" +
-    (c.artifact_bytes ? num(c.artifact_bytes) + " bytes" : "") + "</span></div>" + dbody;
+  const diff = '<div class="dhead"><span><b>diff</b> · fixture → workspace · <span class="file">' + esc(entry) +
+    "</span></span><span>" + (c.artifact_bytes ? num(c.artifact_bytes) + " bytes" : "") + "</span></div>" + dbody;
 
   /* identity, cost, latency — never before the choice is made */
   let rev;
   if (revealed && c.reveal) {
     const r = c.reveal;
-    const cost = (typeof r.cost_usd === "number") ? "$" + r.cost_usd.toFixed(5) : "not reported";
+    const cost = (typeof r.cost_usd === "number")
+      ? "$" + r.cost_usd.toFixed(5) + (r.cost_source ? ' <span class="mut">· ' + esc(r.cost_source) + "</span>" : "")
+      : esc(r.cost_source || "not reported");
     rev = '<div class="sec"><span class="k">Receipt</span><dl class="rev">' +
       row("model", '<span class="mono">' + esc(r.model || "—") + "</span>") +
       row("provider", esc(r.provider || "—")) +
@@ -304,7 +322,7 @@ function pane(label, c, s, phase, revealed, chosen, pack) {
       row("completion tok", num(r.completion_tokens)) +
       row("reasoning tok", num(r.reasoning_tokens)) +
       row("prompt tok", num(r.prompt_tokens)) +
-      row("cost", esc(cost) + (r.cost_source ? ' <span class="mut">· ' + esc(r.cost_source) + "</span>" : "")) +
+      row("cost", cost) +
       row("latency", (typeof r.latency_s === "number" ? r.latency_s.toFixed(1) + " s" : "—")) +
       "</dl></div>";
   } else if (revealed) {
@@ -319,8 +337,9 @@ function pane(label, c, s, phase, revealed, chosen, pack) {
   if (!s.choice) {
     const can = phase === "judged" && !pending;
     acts.push('<button class="go" data-act="choose" data-label="' + label + '"' + (can ? "" : " disabled") + ">Choose " + label + "</button>");
-    if (phase === "running") hint = "Available when every pane is judged.";
-    else if (phase !== "judged") hint = "Choosing is closed in phase " + phase + ".";
+    if (can) hint = "";
+    else if (phase === "running") hint = "Available when every pane is judged.";
+    else hint = "Choosing is closed in phase " + phase + ".";
   } else if (picked) {
     const applied = !!(s.apply && s.apply.commit);
     const can = phase === "chosen" && !applied && !pending;
@@ -328,9 +347,9 @@ function pane(label, c, s, phase, revealed, chosen, pack) {
       (applied ? "Applied" : "Apply this result") + "</button>");
     if (applied) hint = "Applied once. Re-applying is refused by the server.";
     else if (!can) hint = "Applying is available in phase chosen; this round is in phase " + phase + ".";
-    else hint = "Writes " + esc(entry) + " and commits it.";
+    else hint = "";
   } else {
-    hint = "You chose " + s.choice.label + ".";
+    hint = "Not chosen. Its workspace is kept, unapplied.";
   }
   if (errors[label]) hint = errors[label];
   const actions = '<div class="actions">' + acts.join("") +
@@ -350,11 +369,13 @@ function pane(label, c, s, phase, revealed, chosen, pack) {
       "</div>";
   }
 
+  const facts = (chips.length || note || fails || tool)
+    ? '<div class="sec"><div class="chips">' + chips.join("") + "</div>" + note + fails +
+      (tool ? '<div style="margin-top:7px">' + tool + "</div>" : "") + "</div>"
+    : "";
   return '<section class="pane' + (picked ? " picked" : "") + '">' +
     '<div class="phead"><span class="lbl">' + esc(label) + '</span><span class="st"><i class="dot ' + dot + '"></i>' + esc(stext) + "</span></div>" +
-    '<div class="sec"><div class="chips">' + chips.join("") + "</div>" +
-      (note ? '<p class="note">' + note + "</p>" : "") + fails + (tool ? '<div style="margin-top:7px">' + tool + "</div>" : "") + "</div>" +
-    diff + rev + applied + actions +
+    facts + diff + rev + applied + actions +
     "</section>";
 }
 
