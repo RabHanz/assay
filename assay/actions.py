@@ -23,11 +23,38 @@ import os
 import sys
 from pathlib import Path
 
-from .github import (CHOICE, MARKER, REVEAL_MARKER, GhError, board_comment, gh, open_pr,
+from .github import (CHOICE, MARKER, REVEAL_MARKER, GhError, board_comment, gh, may_decide, open_pr,
                      read_issue, reveal_comment, run_for_issue)
 
 RUN_MARKER = "<!-- assay:run {run_id} -->"
-DECIDERS = {"OWNER", "MEMBER", "COLLABORATOR"}
+# author_association is a pre-filter only. CONTRIBUTOR means a commit was once merged, not that
+# the account holds write today, and NONE-versus-CONTRIBUTOR is not a permission model. The gate
+# is the repository's real permission, read from the API, exactly as in the local watch.
+PREFILTER = {"OWNER", "MEMBER", "COLLABORATOR"}
+
+
+def action_gate(repo: str, number: int, comment_body: str, author: str, association: str) -> int:
+    """First step of the choose job, before any artifact is fetched: may this person decide?
+
+    On a public repository `issue_comment` fires for ANY commenter and the job runs in the base
+    repository's context. A gate that runs after work has happened is an audit log, not a gate,
+    so this step decides whether the rest of the job exists at all.
+    """
+    m = CHOICE.search(comment_body or "")
+    if not m:
+        _out(allowed="false", reason="not-a-choice")
+        return 0
+    allowed = (association or "").upper() in PREFILTER and may_decide(repo, author)
+    if not allowed:
+        gh("issue", "comment", str(number), "--repo", repo, "--body-file", "-",
+           stdin=(f"@{author} — a choice here opens a pull request against this repository, so it is "
+                  f"taken only from an account with write access, read from the repository's own "
+                  f"permissions. Yours does not include it, so nothing has moved. The board above is "
+                  f"unchanged and still blind."))
+        print(f"{author} ({association}) chose {m.group(1).upper()}; refused at the gate", flush=True)
+    _out(allowed="true" if allowed else "false", reason="ok" if allowed else "no-write-access",
+         label=m.group(1).upper())
+    return 0
 
 
 def _out(**kv) -> None:
@@ -82,12 +109,9 @@ def action_choose(repo: str, number: int, comment_body: str, author: str, associ
         print("no board on this issue yet; nothing to do", flush=True)
         _out(acted="false")
         return 0
-    if (association or "").upper() not in DECIDERS:
-        gh("issue", "comment", str(number), "--repo", repo, "--body-file", "-",
-           stdin=(f"@{author} — a choice here opens a pull request against this repository, so it is "
-                  f"taken only from an owner, member or collaborator. GitHub records you as "
-                  f"`{association or 'NONE'}` on this repository, so nothing has moved. The board above "
-                  f"is unchanged and still blind."))
+    # Defence in depth: the gate step already refused anyone without write access before this
+    # step could run; check again here so this function is safe even when called on its own.
+    if (association or "").upper() not in PREFILTER or not may_decide(repo, author):
         print(f"{author} ({association}) chose {label}; refused", flush=True)
         _out(acted="refused")
         return 0
@@ -131,6 +155,12 @@ def main(argv: list[str]) -> int:
     if cmd == "round":
         repo, number = rest[0], int(rest[1])
         return action_round(repo, number, default_models=os.environ.get("ASSAY_MODELS", ""))
+    if cmd == "gate":
+        repo, number = rest[0], int(rest[1])
+        return action_gate(repo, number,
+                           comment_body=os.environ.get("ASSAY_COMMENT_BODY", ""),
+                           author=os.environ.get("ASSAY_COMMENT_AUTHOR", "?"),
+                           association=os.environ.get("ASSAY_COMMENT_ASSOCIATION", ""))
     if cmd == "choose":
         repo, number = rest[0], int(rest[1])
         return action_choose(repo, number,
