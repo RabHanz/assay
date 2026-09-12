@@ -206,5 +206,11 @@ def run_one(model_spec: str, pack, workspace: Path, *, allow_exec: bool = False,
     r.finished_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     after_path = workspace / pack.entrypoint
     r.emitted_artifact = after_path.exists() and (before is None or after_path.read_text() != before)
+    # `empty_output` is the outcome where the budget was billed and NOTHING came back. A model
+    # that wrote a passing file and then ended on a silent turn is not that: it is a completed
+    # run with a stop reason of `no_tool_call`. Conflating the two put an EMPTY label on a
+    # 7/7 PASS in the first four-model round (gpt-oss-20b, 2026-09-12).
+    if r.emitted_artifact:
+        r.empty_output = False
     (workspace.parent / "receipt.json").write_text(json.dumps(r.as_dict(), indent=2))
     return r

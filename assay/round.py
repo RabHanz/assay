@@ -187,7 +187,7 @@ class Round:
 def table(state: dict, identities: dict | None = None) -> str:
     """A terminal table for a finished round. Identities are shown only if given (i.e. after reveal)."""
     rows = []
-    hdr = f"{'label':5} {'verdict':12} {'stopped':22} {'turns':>5} {'out tok':>8} {'reason':>8} {'cost':>10} {'lat s':>6}  model"
+    hdr = f"{'label':5} {'verdict':14} {'stopped':22} {'turns':>5} {'out tok':>8} {'reason':>8} {'cost':>10} {'lat s':>6}  model"
     rows.append(hdr)
     for label in state["order"]:
         c = state["contestants"][label]
@@ -195,9 +195,11 @@ def table(state: dict, identities: dict | None = None) -> str:
         model = (identities or {}).get(label) or r.get("model") or "(hidden)"
         cost = r.get("cost_usd")
         cost_s = f"${cost:.5f}" if isinstance(cost, (int, float)) else "n/r"
+        # The verdict is the check's word and nothing overwrites it; `empty` is a separate mark,
+        # because "it returned nothing" and "it got it wrong" are different results.
         v = (c.get("verdict") or "").upper()
         if c.get("empty_output"):
-            v = "EMPTY"
-        rows.append(f"{label:5} {v:12} {str(c.get('stopped_because')):22} {r.get('turns') or c.get('turn') or 0:>5} "
+            v = f"{v} (empty)" if v and v != "NO_ARTIFACT" else "EMPTY"
+        rows.append(f"{label:5} {v:14} {str(c.get('stopped_because')):22} {r.get('turns') or c.get('turn') or 0:>5} "
                     f"{r.get('completion_tokens') or '-':>8} {r.get('reasoning_tokens') or '-':>8} {cost_s:>10} {r.get('latency_s') or '-':>6}  {model}")
     return "\n".join(rows)
