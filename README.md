@@ -30,6 +30,22 @@ You do not go anywhere to use this. The whole loop is an issue thread and a pull
 
 Columns A and D were the same model. It passed once and crashed once, on the same task, in the same minute, under identical ceilings. A leaderboard that ranked it off one run would have been right by luck. That is why the board shows outcomes and the [scoreboard](SCOREBOARD.md) shows pass rates with their n.
 
+## Three things that happened on this repository
+
+- **[Issue #14](https://github.com/RabHanz/assay/issues/14)** went from one label to an open pull
+  request in 3 minutes 23 seconds, with no human action in between except the choice. The
+  workflow ran on GitHub's own runners; nothing of ours ran anywhere.
+- **On that round the free model won.** The blind choice, made on the board alone, landed on
+  Gemini's free tier, which finished cleanly in ten seconds. Of the two paid attempts beside it,
+  one also passed but ran to its token ceiling on the last step, and one spent its entire budget
+  reasoning and wrote nothing. The receipts say what each cost. Paying did not buy the right
+  answer that time, and the only reason anyone could know that is that the task was theirs.
+- **Five bugs in this tool were found by running it and none by reading it**: a relative path
+  graded as a model failure; a passing file hidden behind an "empty" label; a choice lost to a
+  restart; the untouched fixture rendered as a candidate's own work; and a secret pasted with its
+  quotes, so the runner sent an invalid header. Each was the tool's bookkeeping disagreeing with
+  what had actually happened.
+
 ## Put it in your repository
 
 Two steps, not one:
@@ -135,11 +151,6 @@ Not a universal ranking. Sample sizes are shown as they are. A public board publ
 expected values, so a public round spends its hidden cases; packs are cheap and meant to be
 replaced, and what matters is that the check predates every attempt. Whether anyone will pay for
 this is untested.
-
-Four bugs in this tool were found by running it and none by reading it: a relative path graded as
-a model failure; a passing file hidden behind an "empty" label; a choice lost to a restart; and the
-untouched fixture rendered as a candidate's own work. Each was the tool's bookkeeping disagreeing
-with what had actually happened.
 
 ## Prior work
 
