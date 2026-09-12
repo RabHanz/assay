@@ -1,0 +1,68 @@
+{
+  "round_id": "2026-09-12T18-40-11Z-chore-recurrence",
+  "pack": {
+    "name": "chore-recurrence",
+    "version": "1",
+    "entrypoint": "solution.py",
+    "brief_excerpt": "The file `solution.py` in your workspace contains a function `next_due` that is not implemented.\n\nImplement it exactly as its docstring specifies:\n\n- `rule` is one of `daily:N` (every N days from `start`), `weekly:N:MO,WE` (every N weeks from\n  `start`, on the listed weekdays; weekday codes are MO T"
+  },
+  "policy": {
+    "max_turns": 6,
+    "max_completion_tokens": 8000,
+    "wall_seconds": 300,
+    "allow_exec": false,
+    "label": "identical ceilings for every pane"
+  },
+  "blind": true,
+  "order": [
+    "C",
+    "A",
+    "B"
+  ],
+  "choice": null,
+  "apply": null,
+  "started_at": "2026-09-12T18:40:11Z",
+  "phase": "running",
+  "revealed": false,
+  "contestants": {
+    "A": {
+      "status": "running",
+      "turn": 3,
+      "last_tool": "write_file solution.py",
+      "verdict": null,
+      "failures_count": null,
+      "failures": [],
+      "stopped_because": null,
+      "empty_output": false,
+      "artifact_diff": "",
+      "artifact_bytes": 0,
+      "reveal": null
+    },
+    "B": {
+      "status": "queued",
+      "turn": 0,
+      "last_tool": null,
+      "verdict": null,
+      "failures_count": null,
+      "failures": [],
+      "stopped_because": null,
+      "empty_output": false,
+      "artifact_diff": "",
+      "artifact_bytes": 0,
+      "reveal": null
+    },
+    "C": {
+      "status": "judging",
+      "turn": 2,
+      "last_tool": "done",
+      "verdict": null,
+      "failures_count": null,
+      "failures": [],
+      "stopped_because": "done",
+      "empty_output": false,
+      "artifact_diff": "",
+      "artifact_bytes": 0,
+      "reveal": null
+    }
+  }
+}

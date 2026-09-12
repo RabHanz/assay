@@ -47,7 +47,7 @@ def cmd_models(a: argparse.Namespace) -> int:
 
 def cmd_room(a: argparse.Namespace) -> int:
     from .room import serve
-    return serve(Path(a.round_dir), port=a.port, target=a.target, target_path=a.target_path)
+    return serve(Path(a.round_dir), port=a.port, target=a.target, target_path=a.target_path, bind=a.bind)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -69,6 +69,7 @@ def main(argv: list[str] | None = None) -> int:
     ro = sub.add_parser("room", help="serve the room for one round")
     ro.add_argument("round_dir")
     ro.add_argument("--port", type=int, default=8787)
+    ro.add_argument("--bind", default="127.0.0.1", help="interface to listen on (0.0.0.0 to reach it from another machine on your network)")
     ro.add_argument("--target", default=None, help="git repo the chosen artefact is applied into")
     ro.add_argument("--target-path", default=None, help="path inside the target repo (defaults to the pack entrypoint)")
     ro.set_defaults(fn=cmd_room)

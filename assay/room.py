@@ -51,7 +51,8 @@ def choose(round_dir: Path, label: str) -> dict:
         return state
 
 
-def serve(round_dir: Path, port: int = 8787, target: str | None = None, target_path: str | None = None) -> int:
+def serve(round_dir: Path, port: int = 8787, target: str | None = None, target_path: str | None = None,
+          bind: str = "127.0.0.1") -> int:
     round_dir = Path(round_dir).resolve()
     page = (HERE / "room" / "index.html")
 
@@ -96,8 +97,8 @@ def serve(round_dir: Path, port: int = 8787, target: str | None = None, target_p
         def log_message(self, fmt, *args):  # quiet
             return
 
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), H)
-    print(f"room: http://127.0.0.1:{port}/  round {round_dir.name}" + (f"  target {target}" if target else "  (no target: apply disabled)"), flush=True)
+    httpd = ThreadingHTTPServer((bind, port), H)
+    print(f"room: http://{bind}:{port}/  round {round_dir.name}" + (f"  target {target}" if target else "  (no target: apply disabled)"), flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
