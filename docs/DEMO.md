@@ -2,6 +2,24 @@
 
 The loop lives in the repository, so the demo does too. Nothing here needs a local UI.
 
+## The two-minute recording
+
+The only human action before the board appears is one click.
+
+| | on screen | why it is there |
+|---|---|---|
+| 0:00 | `python -m demo.calendar` — four chores, all "(not implemented yet)" | the problem, in a form anyone reads |
+| 0:10 | the issue, describing the bug; **add the `assay` label** | the single human action; nothing is invoked |
+| 0:20 | `python -m assay watch` picks it up in the terminal | the agent is there, not summoned |
+| 0:35 | the board posts itself into the thread: candidates A–D, verdicts, stop reasons, diffs | the comparison, blind, in the place code is already reviewed |
+| 1:00 | read the failing cases on one candidate; note the one that wrote nothing at all | budget exhaustion and a wrong answer are different results |
+| 1:15 | comment `/assay choose B` | the decision is a comment, and only write access makes it one |
+| 1:25 | the reveal comment: who was who, tokens, reasoning tokens, cost, elapsed | the receipts, after the choice, never before |
+| 1:35 | the pull request opens; **merge it** | the approval is the act the repository already had |
+| 1:50 | `python -m demo.calendar` — real dates, 28 February among them | the bench output shipped |
+
+A run takes longer than the video, so compress it on screen and say so.
+
 ## In GitHub, start to finish
 
 1. **Open an issue** describing the task, with two machine-read lines in the body:
