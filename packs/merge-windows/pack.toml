@@ -1,0 +1,11 @@
+name = "merge-windows"
+version = "1"
+
+[task]
+entrypoint = "solution.py"
+summary = "Merge overlapping inclusive integer windows; return them sorted."
+
+[budget]
+max_turns = 4
+max_tokens = 4000
+wall_seconds = 180

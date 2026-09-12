@@ -1,0 +1,11 @@
+name = "chore-recurrence"
+version = "1"
+
+[task]
+entrypoint = "solution.py"
+summary = "Implement next_due: daily/weekly/monthly rules, N-step skips, holiday roll-forward, month-end clamping."
+
+[budget]
+max_turns = 6
+max_tokens = 8000
+wall_seconds = 300
