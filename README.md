@@ -84,9 +84,34 @@ On one recurrence task with seven hidden cases, free models alone: one passed, o
 
 Earlier measurement on paid models turned up the finding worth keeping: two models from unrelated vendors failed the identical case, returning 31 March where a monthly rule on the 31st must clamp to 28 February. No public leaderboard would surface that, because it lives in the intersection of one specific requirement and several models at once. That is what a personal pack is for.
 
-## What this is not
+## What already exists, and what does not
 
-Not a universal ranking. Sample sizes are shown as they are. Harbor and promptfoo already run sandboxed agent evaluations with hidden checks and portable task sets, and we checked that at source rather than claiming novelty we do not have. What Assay adds is the last step: the bench output ships, behind one human approval, into the real repository.
+Running several models on one task in isolation and applying the winner is not new, and we
+checked rather than assumed. Cursor ships `/best-of-n`: the same task across multiple models at
+once, each in its own worktree, "so the candidates stay isolated from each other and from your
+main checkout", then `/apply-worktree` to land the one you pick
+([docs](https://cursor.com/docs/configuration/worktrees)). GitHub's Agent HQ assigns one issue to
+Copilot, Claude and Codex together and lets you compare their pull requests and merge the best.
+Harbor and promptfoo run sandboxed agent evaluations against hidden checks.
+
+Three things none of them do:
+
+1. **Nobody hides which model is which.** Cursor names the model on the worktree; Agent HQ puts
+   the agent's name on the pull request. Here you choose before you know.
+2. **Nobody puts a pre-written test in the selection seat.** Cursor's own words are that
+   `/best-of-n` "compares runs only"; its optional judge is a model suggesting a favourite. The
+   evaluation frameworks end at a score. Here a check written before the attempts existed decides
+   what can be chosen at all.
+3. **Nobody shows what the code DOES.** Every one of them compares source. This shows the
+   schedule each attempt produces, against the schedule it should have produced.
+
+GitHub already argues the third point for us: it renders prose with source and rendered views,
+turns a CSV into a table, and ships two-up, swipe and onion-skin for image diffs. It treats the
+rendered artefact as primary everywhere except code. This applies that instinct to code.
+
+Not a universal ranking. Sample sizes are shown as they are. And publishing a board publishes
+that pack's expected values, so a public round spends its hidden cases — packs are cheap and
+meant to be replaced, and the property that matters is that the check predates every attempt.
 
 Built by Rabee Hanzla.
 
