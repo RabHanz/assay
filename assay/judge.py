@@ -33,14 +33,20 @@ class Verdict:
 
 
 def judge(check: Path, workspace: Path, entrypoint: str, timeout: int = 60) -> Verdict:
+    check = Path(check).resolve()  # runs with cwd = its own directory, so it must be absolute
+    workspace = Path(workspace).resolve()
     artifact = workspace / entrypoint
     if not artifact.exists():
         return Verdict("no_artifact", detail=f"{entrypoint} was never written")
 
     env = dict(os.environ)
-    # The workspace is importable; the check is not inside it.
-    env["PYTHONPATH"] = str(workspace)
-    env.pop("OPENROUTER_API_KEY", None)  # the grader never needs credentials
+    # The workspace is importable; the check is not inside it. The path must be absolute:
+    # the check runs with cwd = the pack directory, and a relative PYTHONPATH resolved there
+    # made the very first smoke run report "No module named 'solution'" as a model failure.
+    env["PYTHONPATH"] = str(Path(workspace).resolve())
+    for k in list(env):  # the grader never needs credentials
+        if k.startswith(("OPENROUTER_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY")):
+            env.pop(k, None)
     try:
         proc = subprocess.run(
             [sys.executable, str(check)],

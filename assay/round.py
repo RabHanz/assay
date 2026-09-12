@@ -59,8 +59,12 @@ class Round:
         self.blind = blind
         self.allow_exec = allow_exec
         self.round_id = f"{time.strftime('%Y-%m-%dT%H-%M-%SZ', time.gmtime())}-{self.pack.name}"
-        self.dir = Path(runs_dir) / self.round_id
+        self.dir = (Path(runs_dir) / self.round_id).resolve()
         self.dir.mkdir(parents=True, exist_ok=True)
+        # The fixture as it was when the round ran: apply compares the target file against
+        # this before writing, so evidence judged on one base is never applied onto another.
+        import shutil
+        shutil.copytree(self.pack.fixture, self.dir / "fixture-snapshot", dirs_exist_ok=True)
         self.state = {
             "round_id": self.round_id,
             "pack": {"name": self.pack.name, "version": self.pack.version, "entrypoint": self.pack.entrypoint,

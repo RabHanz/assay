@@ -122,21 +122,34 @@ def chat(provider: str, model: str, messages: list, tools: list, max_tokens: int
 
     last_err: Exception | None = None
     t0 = time.time()
+    # A 503 / 529 "high demand" is the provider being busy, not the model being wrong. It is
+    # retried a bounded number of times with a short pause, inside the caller's wall budget;
+    # anything else surfaces at once. (Recorded on the receipt as a transport error if it
+    # never clears, which is a different column from a failed check.)
+    transient = 0
+    data = None
     for attempt, name in enumerate(names):
-        try:
-            data, _headers = _post(cfg["base"] + "/chat/completions", keys[name], payload, timeout)
+        while True:
+            try:
+                data, _headers = _post(cfg["base"] + "/chat/completions", keys[name], payload, timeout)
+                break
+            except urllib.error.HTTPError as e:
+                body = e.read().decode("utf-8", "replace")[:300]
+                if e.code in (503, 529, 502) and transient < 3 and (time.time() - t0) < timeout - 15:
+                    transient += 1
+                    time.sleep(5 * transient)
+                    continue
+                if e.code == 429 and provider == "gemini" and attempt < len(names) - 1:
+                    last_err = RateLimited(f"429 on key {name}; rotating")
+                    break
+                if e.code == 429:
+                    raise RateLimited(f"429 from {provider}: {body}") from None
+                raise ProviderError(f"HTTP {e.code} from {provider}: {body}") from None
+            except (urllib.error.URLError, TimeoutError, OSError) as e:
+                raise ProviderError(f"{type(e).__name__} from {provider}: {str(e)[:200]}") from None
+        if data is not None:
             break
-        except urllib.error.HTTPError as e:
-            body = e.read().decode("utf-8", "replace")[:300]
-            if e.code == 429 and provider == "gemini" and attempt < len(names) - 1:
-                last_err = RateLimited(f"429 on key {name}; rotating")
-                continue
-            if e.code == 429:
-                raise RateLimited(f"429 from {provider}: {body}") from None
-            raise ProviderError(f"HTTP {e.code} from {provider}: {body}") from None
-        except (urllib.error.URLError, TimeoutError, OSError) as e:
-            raise ProviderError(f"{type(e).__name__} from {provider}: {str(e)[:200]}") from None
-    else:
+    if data is None:
         raise last_err or ProviderError("no attempt made")
     latency = time.time() - t0
 
