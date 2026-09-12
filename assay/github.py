@@ -27,7 +27,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from .outcome import compare
+from .outcome import compare, defects
 from .round import Round
 from .providers import parse_model
 
@@ -98,18 +98,71 @@ def board_comment(state: dict, round_id: str) -> str:
                     if (state["contestants"][l].get("outcome") or {}).get("rows")]
         lines += ["", f"#### {comp.get('title') or 'What each attempt produced'}",
                   f"*{comp.get('subtitle') or ''}*", ""]
-        head = "| | " + " | ".join(f"**{l}**" for l in produced) + " |"
-        lines += [head, "|" + "---|" * (len(produced) + 1)]
+        # Anchored to what is CORRECT, and only the facts an attempt got wrong. Four full
+        # outputs side by side is the diff problem at a lower resolution: the reader has to
+        # find the difference themselves. With a "should be" column and the agreeing rows
+        # folded away, the thing that is wrong is the only thing on screen.
+        anchored = comp.get("has_expected")
+        divergent = [r for r in comp["rows"] if not (anchored and r.get("clean"))]
+        if anchored and not divergent:
+            # Everyone got it right. A comparison of identical columns says nothing, so show the
+            # schedule once: the reader still sees the work, and the board does not pretend
+            # there is a difference to find.
+            lines += ["| | " + " | ".join(comp.get("columns") or []) + " |",
+                      "|" + "---|" * (len(comp.get("columns") or []) + 1)]
+            for r in comp["rows"]:
+                lines.append(f"| **{r['label']}** <sub>{r.get('note') or ''}</sub> | "
+                             + " | ".join(r.get("expected") or []) + " |")
+            lines += ["", f"All {len(produced)} attempts produced exactly this, and it is right in every row. "
+                          f"Nothing separates them on the outcome, so the receipts decide once you choose."]
+            lines += ["", "Identities, costs and timings stay hidden until someone chooses. The code itself, "
+                          "for whoever wants it:"]
+            for label in state["order"]:
+                c = state["contestants"][label]
+                diff = c.get("artifact_diff") or ""
+                if diff.strip():
+                    lines.append(_fold(f"Candidate {label} — {c.get('artifact_bytes', 0)} bytes", diff))
+            return "\n".join(lines + ["", "---", "",
+                "**Reply `/assay choose B`** (any label above) to commit to one. That reveals every identity "
+                "and receipt, and opens a pull request carrying exactly that attempt — nothing else is applied.",
+                "", f"<sub>round `{round_id}` · a pass means it passed this pack's checks, not that the code is "
+                    f"correct · a choice is taken only from an account with write access to this repository</sub>"])
+        head = "| | " + ("**should be** | " if anchored else "") + " | ".join(f"**{l}**" for l in produced) + " |"
+        lines += [head, "|" + "---|" * (len(produced) + 1 + (1 if anchored else 0))]
+        shown = agreed = 0
         for r in comp["rows"]:
+            if anchored and r.get("clean"):
+                agreed += 1
+                continue
+            shown += 1
             for i in range(r["width"]):
+                interesting = (not anchored) or r["disagrees"][i] or any(
+                    (r.get("wrong") or {}).get(l, [False] * r["width"])[i] for l in produced)
+                if anchored and not interesting:
+                    continue
                 col = (comp["columns"][i] if i < len(comp["columns"]) else str(i + 1))
-                name = f"**{r['label']}** <sub>{r['note']}</sub><br>{col}" if i == 0 else f"↳ {col}"
+                name = f"**{r['label']}** <sub>{r.get('note') or ''}</sub><br>{col}"
                 cells = []
                 for l in produced:
-                    v = (r["cells"].get(l) or [None] * r["width"])[i] if i < len(r["cells"].get(l, [])) else "—"
-                    cells.append(f"**{v}** ⚠️" if r["disagrees"][i] and not str(v).startswith("—") else str(v))
-                lines.append(f"| {name} | " + " | ".join(cells) + " |")
-        lines += ["", "A marked cell is one the attempts do not agree on. That is where to look."]
+                    got = r["cells"].get(l) or []
+                    v = got[i] if i < len(got) else "—"
+                    bad = (r.get("wrong") or {}).get(l, [False] * r["width"])[i]
+                    cells.append(f"**{v}** ❌" if bad else (f"{v} ✓" if anchored else str(v)))
+                exp = f"{r['expected'][i]} | " if anchored and i < len(r.get("expected") or []) else ("— | " if anchored else "")
+                lines.append(f"| {name} | {exp}" + " | ".join(cells) + " |")
+        if anchored:
+            for cand, sentence in defects(comp).items():
+                if cand in produced and sentence:
+                    lines.append(f"| **{cand}** in one line | | " + " | ".join(
+                        [f"*{sentence}*" if l == cand else "" for l in produced]) + " |")
+            if agreed:
+                lines += ["", f"The other {agreed} of {agreed + shown} rows are right in every attempt "
+                              f"and are left out. What is above is what somebody got wrong."]
+            if not shown:
+                lines += ["", "Every attempt produced exactly the right schedule. Nothing to choose between "
+                              "on the outcome, so the receipts are the tiebreaker once you pick."]
+        else:
+            lines += ["", "A marked cell is one the attempts do not agree on. That is where to look."]
         silent = [l for l in state["order"] if l not in produced]
         if silent:
             why = []

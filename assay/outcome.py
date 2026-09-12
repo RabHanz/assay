@@ -70,16 +70,21 @@ def compare(outcomes: dict[str, dict]) -> dict:
 
     rows = []
     for label in order:
-        note = first_note = None
+        note = why = expected = None
         cells: dict[str, list] = {}
         for cand, rowmap in by_label.items():
             r = rowmap.get(label)
             if r is None:
                 continue
             note = note or r.get("note")
+            why = why or r.get("why")
+            expected = expected or r.get("expected")
             cells[cand] = list(r.get("cells") or [])
         width = max((len(c) for c in cells.values()), default=0)
+        if expected:
+            width = max(width, len(expected))
         marks: list[bool] = []
+        wrong: dict[str, list[bool]] = {c: [] for c in cells}
         for i in range(width):
             # Only real answers count as disagreement. A candidate that produced nothing at all
             # differs from everyone by construction, and marking that as a disagreement would
@@ -87,10 +92,45 @@ def compare(outcomes: dict[str, dict]) -> dict:
             # genuinely part company — which is the cell worth a human's eye.
             values = [cells[c][i] for c in cells if i < len(cells[c]) and not str(cells[c][i]).startswith("—")]
             marks.append(len(values) > 1 and len(set(values)) > 1)
-        rows.append({"label": label, "note": note or first_note, "cells": cells,
-                     "disagrees": marks, "width": width})
+            for c in cells:
+                v = cells[c][i] if i < len(cells[c]) else None
+                wrong[c].append(bool(expected) and i < len(expected) and v is not None and v != expected[i])
+        rows.append({"label": label, "note": note, "why": why, "expected": expected,
+                     "cells": cells, "disagrees": marks, "wrong": wrong, "width": width,
+                     "clean": not any(any(w) for w in wrong.values()) and not any(marks)})
     return {"rows": rows, "labels": list(outcomes), "columns": columns,
-            "title": first.get("title"), "subtitle": first.get("subtitle")}
+            "title": first.get("title"), "subtitle": first.get("subtitle"),
+            "has_expected": any(r.get("expected") for r in rows)}
+
+
+def defects(comparison: dict) -> dict[str, str]:
+    """One plain sentence per candidate naming the first thing it got wrong, or None.
+
+    A table tells a reader where to look; a sentence tells them what they are looking at.
+    Written from the pack's own explanation of the row, so it reads as English rather than
+    as a cell reference: "puts the deep clean on 31 March, when the 31st of a month has to
+    land on 28 February".
+    """
+    out: dict[str, str] = {}
+    for cand in comparison.get("labels", []):
+        said = None
+        for r in comparison.get("rows", []):
+            flags = (r.get("wrong") or {}).get(cand) or []
+            for i, bad in enumerate(flags):
+                if not bad:
+                    continue
+                got = r["cells"][cand][i]
+                want = r["expected"][i]
+                if str(got).startswith("—"):
+                    said = f"stops with an error on “{r['label'].lower()}”"
+                else:
+                    said = (f"puts “{r['label'].lower()}” on {got} where it should be {want}"
+                            + (f" — {r['why']}" if r.get("why") else ""))
+                break
+            if said:
+                break
+        out[cand] = said
+    return out
 
 
 def majority(cells: dict[str, list], index: int) -> str | None:

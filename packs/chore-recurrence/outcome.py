@@ -17,6 +17,23 @@ CHORES = [
     ("Piano practice", date(2026, 1, 5), "weekly:2:MO,WE"),
 ]
 
+# What a correct implementation produces. This is the truth the board is anchored to, and it
+# lives here rather than in the check because the board is for a human and the check is for the
+# verdict. Neither file is ever inside a workspace, so stating the answer here shows it to the
+# reader and to no model.
+EXPECTED = {
+    "Bins out": ["Tue 03 Feb", "Mon 09 Feb", "Mon 16 Feb"],
+    "Water the plants": ["Sat 31 Jan", "Tue 03 Feb", "Fri 06 Feb"],
+    "Deep clean": ["Sat 31 Jan", "Sat 28 Feb", "Tue 31 Mar"],
+    "Piano practice": ["Tue 03 Feb", "Wed 04 Feb", "Mon 16 Feb"],
+}
+WHY = {
+    "Bins out": "Monday the 2nd is a holiday, so the first one rolls to Tuesday",
+    "Water the plants": "every third day, straight through",
+    "Deep clean": "the 31st of every month, so February has to land on the 28th",
+    "Piano practice": "every second week only, so the week of the 9th is skipped",
+}
+
 try:
     from solution import next_due
 except Exception as e:
@@ -35,7 +52,8 @@ for name, start, rule in CHORES:
             break
     while len(cells) < 3:
         cells.append("—")
-    rows.append({"label": name, "note": rule, "cells": cells})
+    rows.append({"label": name, "note": rule, "cells": cells,
+                 "expected": EXPECTED[name], "why": WHY[name]})
 
 print(json.dumps({
     "title": "The next three times each chore comes round",
